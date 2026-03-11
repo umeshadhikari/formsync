@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "FormSync",
+    "slug": "formsync",
+    "version": "1.0.0",
+    "scheme": "formsync",
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router"]
+  }
+}

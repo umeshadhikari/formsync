@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://www.formsync.com/workflows">
+
+    <process id="formApprovalProcess" name="FormSync Approval Process" isExecutable="true">
+
+        <startEvent id="start" name="Form Submitted"/>
+
+        <sequenceFlow id="flow1" sourceRef="start" targetRef="evaluateRules"/>
+
+        <serviceTask id="evaluateRules" name="Evaluate Approval Rules"
+                     flowable:delegateExpression="${approvalRuleEvaluator}"/>
+
+        <sequenceFlow id="flow2" sourceRef="evaluateRules" targetRef="checkApprovalNeeded"/>
+
+        <exclusiveGateway id="checkApprovalNeeded" name="Approval Required?"/>
+
+        <sequenceFlow id="flowAutoApprove" sourceRef="checkApprovalNeeded" targetRef="submitToCbs">
+            <conditionExpression>${requiredTiers == 0}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flowNeedApproval" sourceRef="checkApprovalNeeded" targetRef="tier1Approval">
+            <conditionExpression>${requiredTiers > 0}</conditionExpression>
+        </sequenceFlow>
+
+        <userTask id="tier1Approval" name="Tier 1 Approval"
+                  flowable:candidateGroups="CHECKER,BRANCH_MANAGER,OPS_ADMIN">
+            <documentation>Supervisor review and approval for form ${referenceNumber}</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow3" sourceRef="tier1Approval" targetRef="checkTier1Result"/>
+
+        <exclusiveGateway id="checkTier1Result" name="Tier 1 Decision"/>
+
+        <sequenceFlow id="flowTier1Rejected" sourceRef="checkTier1Result" targetRef="rejected">
+            <conditionExpression>${approvalAction == 'REJECT'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flowTier1Approved" sourceRef="checkTier1Result" targetRef="checkMoreTiers">
+            <conditionExpression>${approvalAction == 'APPROVE'}</conditionExpression>
+        </sequenceFlow>
+
+        <exclusiveGateway id="checkMoreTiers" name="More Tiers?"/>
+
+        <sequenceFlow id="flowNoMoreTiers" sourceRef="checkMoreTiers" targetRef="submitToCbs">
+            <conditionExpression>${currentTier >= requiredTiers}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flowMoreTiers" sourceRef="checkMoreTiers" targetRef="tier2Approval">
+            <conditionExpression>${currentTier &lt; requiredTiers}</conditionExpression>
+        </sequenceFlow>
+
+        <userTask id="tier2Approval" name="Tier 2 Approval"
+                  flowable:candidateGroups="BRANCH_MANAGER,OPS_ADMIN">
+            <documentation>Branch Manager review for form ${referenceNumber}</documentation>
+        </userTask>
+
+        <sequenceFlow id="flow4" sourceRef="tier2Approval" targetRef="checkTier2Result"/>
+
+        <exclusiveGateway id="checkTier2Result"/>
+
+        <sequenceFlow id="flowTier2Rejected" sourceRef="checkTier2Result" targetRef="rejected">
+            <conditionExpression>${approvalAction == 'REJECT'}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flowTier2Approved" sourceRef="checkTier2Result" targetRef="submitToCbs">
+            <conditionExpression>${approvalAction == 'APPROVE'}</conditionExpression>
+        </sequenceFlow>
+
+        <serviceTask id="submitToCbs" name="Submit to CBS"
+                     flowable:delegateExpression="${cbsSubmissionTask}"/>
+
+        <sequenceFlow id="flow5" sourceRef="submitToCbs" targetRef="archiveToDms"/>
+
+        <serviceTask id="archiveToDms" name="Archive to DMS"
+                     flowable:delegateExpression="${dmsArchivalTask}"/>
+
+        <sequenceFlow id="flow6" sourceRef="archiveToDms" targetRef="completed"/>
+
+        <endEvent id="completed" name="Completed"/>
+
+        <endEvent id="rejected" name="Rejected"/>
+
+    </process>
+</definitions>
