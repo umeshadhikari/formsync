@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from './Icon';
 import { useTheme } from '../context/ThemeContext';
 import { QueueItem, JOURNEY_TYPES, STATUS_COLORS } from '../types';
+import { getElevation, getStatusGlow } from '../utils/styles';
 
 interface ApprovalCardProps {
   item: QueueItem;
@@ -15,15 +16,24 @@ export default function ApprovalCard({ item, onPress }: ApprovalCardProps) {
   const wf = item.workflow;
   if (!form) return null;
 
-  const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888', icon: 'document' };
-  const statusColor = STATUS_COLORS[form.status] || '#888';
+  const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: theme.textSecondary, icon: 'document' };
+  const statusColor = STATUS_COLORS[form.status] || theme.textSecondary;
 
   const timeSinceSubmit = form.submittedAt
     ? getTimeAgo(new Date(form.submittedAt))
     : '';
 
   return (
-    <TouchableOpacity style={[styles.card, { backgroundColor: theme.surfaceColor }]} onPress={onPress}>
+    <TouchableOpacity
+      style={[
+        styles.card,
+        {
+          backgroundColor: theme.surfaceColor,
+          ...getElevation(2, theme),
+        }
+      ]}
+      onPress={onPress}
+    >
       <View style={styles.topRow}>
         <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '15' }]}>
           <Ionicons name={journeyInfo.icon as any} size={12} color={journeyInfo.color} />
@@ -33,7 +43,15 @@ export default function ApprovalCard({ item, onPress }: ApprovalCardProps) {
           <View style={[styles.tierBadge, { backgroundColor: theme.warningColor + '20' }]}>
             <Text style={[styles.tierText, { color: theme.warningColor }]}>Tier {wf?.currentTier || 1}</Text>
           </View>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: statusColor,
+                ...(theme.isDark && getStatusGlow(statusColor, theme))
+              }
+            ]}
+          />
         </View>
       </View>
 
@@ -73,7 +91,12 @@ function getTimeAgo(date: Date): string {
 }
 
 const styles = StyleSheet.create({
-  card: { margin: 16, marginBottom: 8, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  card: {
+    margin: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 16,
+  },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   journeyBadge: { flexDirection: 'row', alignItems: 'center', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, gap: 4 },
   journeyText: { fontSize: 11, fontWeight: '700' },

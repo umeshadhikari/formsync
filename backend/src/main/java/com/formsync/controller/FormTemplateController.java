@@ -3,18 +3,24 @@ package com.formsync.controller;
 import com.formsync.dto.FormTemplateRequest;
 import com.formsync.model.FormTemplate;
 import com.formsync.model.User;
+import com.formsync.repository.FormTemplateRepository;
 import com.formsync.service.FormTemplateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController @RequestMapping("/api/v1/forms/templates") @RequiredArgsConstructor
 public class FormTemplateController {
     private final FormTemplateService service;
+    private final FormTemplateRepository templateRepo;
 
     @GetMapping
     public ResponseEntity<List<FormTemplate>> listPublished() {
@@ -23,8 +29,10 @@ public class FormTemplateController {
 
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
-    public ResponseEntity<List<FormTemplate>> listAll() {
-        return ResponseEntity.ok(service.listAll());
+    public ResponseEntity<Page<FormTemplate>> listAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(templateRepo.findAllByOrderByJourneyTypeAscNameAsc(PageRequest.of(page, size)));
     }
 
     @GetMapping("/{id}")
@@ -37,6 +45,13 @@ public class FormTemplateController {
         return ResponseEntity.ok(service.getByJourneyType(journeyType));
     }
 
+    /** Get version history for a form code */
+    @GetMapping("/versions/{formCode}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    public ResponseEntity<List<FormTemplate>> getVersionHistory(@PathVariable String formCode) {
+        return ResponseEntity.ok(service.getVersionHistory(formCode));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
     public ResponseEntity<FormTemplate> create(@Valid @RequestBody FormTemplateRequest req, @AuthenticationPrincipal User actor) {
@@ -47,6 +62,17 @@ public class FormTemplateController {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
     public ResponseEntity<FormTemplate> update(@PathVariable Long id, @Valid @RequestBody FormTemplateRequest req, @AuthenticationPrincipal User actor) {
         return ResponseEntity.ok(service.update(id, req, actor));
+    }
+
+    /** Set expiry date on a template */
+    @PostMapping("/{id}/expire")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    public ResponseEntity<FormTemplate> setExpiry(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User actor) {
+        LocalDateTime expiresAt = body.get("expiresAt") != null ? LocalDateTime.parse(body.get("expiresAt")) : null;
+        return ResponseEntity.ok(service.setExpiry(id, expiresAt, actor));
     }
 
     @PostMapping("/{id}/publish")

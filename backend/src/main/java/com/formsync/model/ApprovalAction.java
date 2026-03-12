@@ -22,6 +22,11 @@ public class ApprovalAction {
     private String comments;
     @Column(name = "signature_id") private Long signatureId;
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") private Map<String, Object> metadata;
+
+    // ── Structured Rejection Reason (V6) ──
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
     @Column(name = "created_at") private LocalDateTime createdAt;
 
     @PrePersist protected void onCreate() { createdAt = LocalDateTime.now(); }

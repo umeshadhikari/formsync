@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <lombok.version>1.18.36</lombok.version>
+        <lombok.version>1.18.38</lombok.version>
         <flowable.version>7.0.1</flowable.version>
         <jjwt.version>0.12.5</jjwt.version>
     </properties>
@@ -57,9 +57,10 @@
             <artifactId>flowable-spring-boot-starter-process</artifactId>
             <version>${flowable.version}</version>
         </dependency>
+        <!-- DMN not needed: approval routing uses database-driven workflow rules -->
         <dependency>
             <groupId>org.flowable</groupId>
-            <artifactId>flowable-spring-boot-starter-dmn</artifactId>
+            <artifactId>flowable-dmn-engine-configurator</artifactId>
             <version>${flowable.version}</version>
         </dependency>
 

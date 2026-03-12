@@ -22,6 +22,30 @@ public class WorkflowRule {
     @JdbcTypeCode(SqlTypes.JSON) @Column(name = "tier_roles", columnDefinition = "jsonb") private List<String> tierRoles;
     private Integer priority;
     @Column(name = "is_active") private Boolean isActive;
+    @Column(name = "sla_minutes")
+    private Integer slaMinutes = 30;
+    @Column(name = "escalation_tier")
+    private Integer escalationTier;
+
+    // ── Rejection & Return Policies (V6) ──
+    @Column(name = "rejection_policy")
+    private String rejectionPolicy = "PERMANENT"; // PERMANENT or ALLOW_RESUBMIT
+
+    @Column(name = "return_policy")
+    private String returnPolicy = "ALLOW_RESUBMIT"; // ALLOW_RESUBMIT
+
+    @Column(name = "max_resubmissions")
+    private Integer maxResubmissions = 3;
+
+    @JdbcTypeCode(SqlTypes.JSON) @Column(name = "rejection_reasons", columnDefinition = "jsonb")
+    private List<String> rejectionReasons;
+
+    @Column(name = "require_rejection_reason")
+    private Boolean requireRejectionReason = true;
+
+    @Column(name = "require_return_instructions")
+    private Boolean requireReturnInstructions = true;
+
     @Column(name = "created_at") private LocalDateTime createdAt;
 
     @PrePersist protected void onCreate() { createdAt = LocalDateTime.now(); }

@@ -34,6 +34,9 @@ public class FormTemplate {
     @Column(name = "created_by") private String createdBy;
     @Column(name = "created_at") private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
+    @Column(name = "expires_at") private LocalDateTime expiresAt;
+    @Column(name = "effective_from") private LocalDateTime effectiveFrom;
+    @Column(name = "superseded_by") private Long supersededBy;
 
     @PrePersist protected void onCreate() { createdAt = updatedAt = LocalDateTime.now(); if (status == null) status = "DRAFT"; if (version == null) version = 1; }
     @PreUpdate protected void onUpdate() { updatedAt = LocalDateTime.now(); }

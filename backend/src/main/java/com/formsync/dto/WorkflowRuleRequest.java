@@ -15,4 +15,12 @@ public class WorkflowRuleRequest {
     private List<String> tierRoles;
     private Integer priority;
     private Boolean isActive;
+
+    // ── Rejection & Return Policies (V6) ──
+    private String rejectionPolicy;          // PERMANENT or ALLOW_RESUBMIT
+    private String returnPolicy;             // ALLOW_RESUBMIT
+    private Integer maxResubmissions;
+    private List<String> rejectionReasons;   // Predefined reason categories
+    private Boolean requireRejectionReason;
+    private Boolean requireReturnInstructions;
 }

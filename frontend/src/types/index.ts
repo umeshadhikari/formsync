@@ -107,11 +107,17 @@ export interface FormInstance {
   amount: number;
   currency: string;
   createdBy: string;
+  submitterName?: string;
   submittedAt?: string;
   completedAt?: string;
   cbsReference?: string;
   dmsReference?: string;
   createdAt: string;
+  // V6 resubmission fields
+  resubmissionCount?: number;
+  originalFormId?: number;
+  lastRejectionReason?: string;
+  lastReturnInstructions?: string;
 }
 
 // ── Workflow Types ──
@@ -124,6 +130,16 @@ export interface WorkflowInstance {
   approvalMode: string;
   slaDeadline?: string;
   escalated: boolean;
+  tierRoles?: string[];
+  claimedBy?: string;
+  claimedByName?: string;
+  claimedAt?: string;
+  claimExpiresAt?: string;
+  // V6 resubmission fields
+  resubmissionCount?: number;
+  originalWorkflowId?: number;
+  rejectionReason?: string;
+  returnInstructions?: string;
 }
 
 export interface ApprovalAction {
@@ -136,6 +152,7 @@ export interface ApprovalAction {
   actorName: string;
   actorRole: string;
   comments?: string;
+  rejectionReason?: string;
   createdAt: string;
 }
 
@@ -151,6 +168,13 @@ export interface WorkflowRule {
   tierRoles: string[];
   priority: number;
   isActive: boolean;
+  // V6 rejection/return policy fields
+  rejectionPolicy?: string;
+  returnPolicy?: string;
+  maxResubmissions?: number;
+  rejectionReasons?: string[];
+  requireRejectionReason?: boolean;
+  requireReturnInstructions?: boolean;
 }
 
 // ── Queue Item ──
@@ -171,13 +195,52 @@ export interface ThemeConfig {
 }
 
 // ── Dashboard ──
+export interface InsightCard {
+  id: string;
+  label: string;
+  value: number;
+  icon: string;
+  color: string;
+  trend?: string;    // "up" | "down" | "neutral"
+  action?: string;   // optional navigation target
+}
+
 export interface DashboardStats {
+  role?: string;
   totalForms: number;
   pendingApproval: number;
   approvedToday: number;
   rejectedToday: number;
   byJourneyType: Record<string, number>;
   byStatus: Record<string, number>;
+  // Teller
+  myDrafts?: number;
+  myPending?: number;
+  myReturned?: number;
+  myRejected?: number;
+  myCompleted?: number;
+  myResubmissions?: number;
+  // Supervisor
+  queueDepth?: number;
+  myPickedUp?: number;
+  slaAtRisk?: number;
+  escalated?: number;
+  todayApproved?: number;
+  todayRejected?: number;
+  todayReturned?: number;
+  // Admin
+  activeRules?: number;
+  totalUsers?: number;
+  formsToday?: number;
+  autoApproved?: number;
+  avgApprovalTiers?: number;
+  // Auditor
+  slaBreach?: number;
+  multiResubmit?: number;
+  rejectionRate?: number;
+  highValuePending?: number;
+  // Universal
+  insights?: InsightCard[];
 }
 
 // ── Audit ──
@@ -195,18 +258,18 @@ export interface AuditLog {
   createdAt: string;
 }
 
-// ── Journey Type Labels ──
+// ── Journey Type Labels (Coral Bank palette) ──
 export const JOURNEY_TYPES: Record<string, { label: string; icon: string; color: string }> = {
-  CASH_DEPOSIT: { label: 'Cash Deposit', icon: 'arrow-down-circle', color: '#27AE60' },
-  CASH_WITHDRAWAL: { label: 'Cash Withdrawal', icon: 'arrow-up-circle', color: '#E74C3C' },
-  FUNDS_TRANSFER: { label: 'Funds Transfer', icon: 'swap-horizontal', color: '#3498DB' },
-  DEMAND_DRAFT: { label: 'Demand Draft', icon: 'document-text', color: '#9B59B6' },
-  ACCOUNT_SERVICING: { label: 'Account Servicing', icon: 'settings', color: '#F39C12' },
-  FIXED_DEPOSIT: { label: 'Fixed Deposit', icon: 'lock-closed', color: '#1ABC9C' },
+  CASH_DEPOSIT: { label: 'Cash Deposit', icon: 'arrow-down-circle', color: '#10B981' },
+  CASH_WITHDRAWAL: { label: 'Cash Withdrawal', icon: 'arrow-up-circle', color: '#F35B54' },
+  FUNDS_TRANSFER: { label: 'Funds Transfer', icon: 'swap-horizontal', color: '#327787' },
+  DEMAND_DRAFT: { label: 'Demand Draft', icon: 'document-text', color: '#8B5CF6' },
+  ACCOUNT_SERVICING: { label: 'Account Servicing', icon: 'settings', color: '#E9AD3C' },
+  FIXED_DEPOSIT: { label: 'Fixed Deposit', icon: 'lock-closed', color: '#8ABB9C' },
   LOAN_DISBURSEMENT: { label: 'Loan Disbursement', icon: 'cash', color: '#E67E22' },
-  CHEQUE_BOOK_REQUEST: { label: 'Cheque Book', icon: 'book', color: '#2C3E50' },
-  ACCOUNT_OPENING: { label: 'Account Opening', icon: 'person-add', color: '#16A085' },
-  INSTRUMENT_CLEARING: { label: 'Instrument Clearing', icon: 'checkmark-circle', color: '#8E44AD' },
+  CHEQUE_BOOK_REQUEST: { label: 'Cheque Book', icon: 'book', color: '#14233C' },
+  ACCOUNT_OPENING: { label: 'Account Opening', icon: 'person-add', color: '#327787' },
+  INSTRUMENT_CLEARING: { label: 'Instrument Clearing', icon: 'checkmark-circle', color: '#8B5CF6' },
 };
 
 export const STATUS_COLORS: Record<string, string> = {

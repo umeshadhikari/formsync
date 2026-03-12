@@ -36,9 +36,23 @@ public class FormInstance {
     private Map<String, Object> cbsResponse;
 
     @Column(name = "dms_reference") private String dmsReference;
+
+    // ── Resubmission Tracking (V6) ──
+    @Column(name = "resubmission_count")
+    private Integer resubmissionCount = 0;
+
+    @Column(name = "original_form_id")
+    private Long originalFormId;
+
+    @Column(name = "last_rejection_reason")
+    private String lastRejectionReason;
+
+    @Column(name = "last_return_instructions", columnDefinition = "TEXT")
+    private String lastReturnInstructions;
+
     @Column(name = "created_at") private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
 
-    @PrePersist protected void onCreate() { createdAt = updatedAt = LocalDateTime.now(); if (status == null) status = "DRAFT"; }
+    @PrePersist protected void onCreate() { createdAt = updatedAt = LocalDateTime.now(); if (status == null) status = "DRAFT"; if (resubmissionCount == null) resubmissionCount = 0; }
     @PreUpdate protected void onUpdate() { updatedAt = LocalDateTime.now(); }
 }

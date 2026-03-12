@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import FormRenderer from '../components/FormRenderer';
 import { FormTemplate, JOURNEY_TYPES } from '../types';
 import api from '../api/client';
+import AlertModal, { useAlert } from '../components/AlertModal';
+import { getGlassStyle, getGlowShadow, getElevation, getGradientStyle, typography } from '../utils/styles';
 
 export default function FormEntryScreen({ route, navigation }: any) {
   const { template: passedTemplate, formId, viewMode } = route.params || {};
@@ -16,6 +18,7 @@ export default function FormEntryScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [existingForm, setExistingForm] = useState<any>(null);
+  const { alert, showAlert, hideAlert } = useAlert();
 
   useEffect(() => {
     if (formId) loadExistingForm();
@@ -31,7 +34,7 @@ export default function FormEntryScreen({ route, navigation }: any) {
         const tpl = await api.getTemplate(form.templateId);
         setTemplate(tpl);
       }
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { showAlert('error', 'Error', e.message); }
     finally { setLoading(false); }
   }
 
@@ -65,7 +68,7 @@ export default function FormEntryScreen({ route, navigation }: any) {
   }
 
   async function handleSubmit() {
-    if (!validate()) { Alert.alert('Validation Error', 'Please fix the highlighted fields'); return; }
+    if (!validate()) { showAlert('warning', 'Validation Error', 'Please fix the highlighted fields'); return; }
     navigation.navigate('CustomerReview', { template, values, user });
   }
 
@@ -78,9 +81,9 @@ export default function FormEntryScreen({ route, navigation }: any) {
         formData: values,
         branchCode: user?.branchCode,
       });
-      Alert.alert('Saved', 'Draft saved successfully');
+      showAlert('success', 'Saved', 'Draft saved successfully');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { showAlert('error', 'Error', e.message); }
     finally { setSubmitting(false); }
   }
 
@@ -91,30 +94,86 @@ export default function FormEntryScreen({ route, navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
-      <View style={[styles.formHeader, { backgroundColor: journeyInfo?.color || theme.primaryColor }]}>
-        <Text style={styles.formTitle}>{template.name}</Text>
-        <Text style={styles.formDesc}>{template.description}</Text>
+      {/* Header with gradient */}
+      <View
+        style={[
+          styles.formHeader,
+          getGradientStyle(
+            journeyInfo?.color || theme.primaryColor,
+            journeyInfo?.color || theme.gradientEnd,
+            135
+          ),
+          getElevation('medium', theme),
+        ]}
+      >
+        <Text style={[styles.formTitle, typography.h1, { color: '#FFF' }]}>
+          {template.name}
+        </Text>
+        {template.description && (
+          <Text style={[styles.formDesc, typography.body, { color: 'rgba(255,255,255,0.85)', marginTop: 6 }]}>
+            {template.description}
+          </Text>
+        )}
         {existingForm && (
-          <Text style={styles.refNumber}>Ref: {existingForm.referenceNumber} | Status: {existingForm.status}</Text>
+          <Text style={[styles.refNumber, typography.small, { color: 'rgba(255,255,255,0.75)', marginTop: 8 }]}>
+            Ref: {existingForm.referenceNumber} • Status: {existingForm.status}
+          </Text>
         )}
       </View>
 
-      <ScrollView style={styles.formBody} contentContainerStyle={styles.formContent}>
-        <FormRenderer schema={template.schema} values={values} onChange={handleChange} errors={errors} readOnly={viewMode} />
+      <ScrollView
+        style={styles.formBody}
+        contentContainerStyle={[styles.formContent, { paddingBottom: viewMode ? 24 : 0 }]}
+      >
+        <FormRenderer
+          schema={template.schema}
+          values={values}
+          onChange={handleChange}
+          errors={errors}
+          readOnly={viewMode}
+        />
       </ScrollView>
 
       {/* Action Bar */}
       {!viewMode && (
-        <View style={[styles.actionBar, { backgroundColor: theme.surfaceColor }]}>
-          <TouchableOpacity style={[styles.draftBtn, { borderColor: theme.textSecondary }]} onPress={handleSaveDraft} disabled={submitting}>
-            <Text style={[styles.draftBtnText, { color: theme.textSecondary }]}>Save Draft</Text>
+        <View
+          style={[
+            styles.actionBar,
+            { backgroundColor: theme.surfaceElevated, borderTopColor: theme.borderColor },
+            getElevation('low', theme),
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.draftBtn,
+              {
+                borderColor: theme.borderColor,
+                backgroundColor: 'transparent',
+              },
+            ]}
+            onPress={handleSaveDraft}
+            disabled={submitting}
+          >
+            <Text style={[typography.bodyBold, { color: theme.textSecondary, fontSize: 14 }]}>
+              Save Draft
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.submitBtn, { backgroundColor: theme.primaryColor }]} onPress={handleSubmit} disabled={submitting}>
-            <Text style={styles.submitBtnText}>{submitting ? 'Processing...' : 'Review & Submit'}</Text>
+          <TouchableOpacity
+            style={[
+              styles.submitBtn,
+              { backgroundColor: theme.accentColor, opacity: submitting ? 0.6 : 1 },
+              getGlowShadow(theme.accentColor, 0.5),
+            ]}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            <Text style={[typography.bodyBold, { color: '#FFF', fontSize: 14 }]}>
+              {submitting ? 'Processing...' : 'Review & Submit'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
+      <AlertModal alert={alert} onClose={hideAlert} />
     </View>
   );
 }
@@ -122,15 +181,40 @@ export default function FormEntryScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  formHeader: { padding: 20, paddingTop: 12 },
-  formTitle: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  formDesc: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
-  refNumber: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 6 },
+  formHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  formTitle: {},
+  formDesc: {},
+  refNumber: {},
   formBody: { flex: 1 },
   formContent: { padding: 16 },
-  actionBar: { flexDirection: 'row', padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: '#E0E0E0' },
-  draftBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, padding: 14, alignItems: 'center' },
-  draftBtnText: { fontWeight: '600' },
-  submitBtn: { flex: 2, borderRadius: 10, padding: 14, alignItems: 'center' },
-  submitBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  actionBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  draftBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftBtnText: {},
+  submitBtn: {
+    flex: 2,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitBtnText: {},
 });

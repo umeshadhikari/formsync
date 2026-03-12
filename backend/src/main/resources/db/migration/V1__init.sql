@@ -202,13 +202,13 @@ CREATE INDEX idx_workflow_rules_journey ON fs_workflow_rules(journey_type, is_ac
 -- ============================================
 -- Passwords are BCrypt hash of 'demo123'
 INSERT INTO fs_users (username, password_hash, full_name, email, role, branch_code) VALUES
-('teller1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Alice Mwangi', 'alice@bank.co.ke', 'MAKER', 'NRB001'),
-('teller2', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Bob Ochieng', 'bob@bank.co.ke', 'MAKER', 'NRB001'),
-('supervisor1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Carol Wanjiku', 'carol@bank.co.ke', 'CHECKER', 'NRB001'),
-('manager1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'David Kamau', 'david@bank.co.ke', 'BRANCH_MANAGER', 'NRB001'),
-('admin1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Eve Njeri', 'eve@bank.co.ke', 'SYSTEM_ADMIN', 'HQ001'),
-('auditor1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Frank Kiprop', 'frank@bank.co.ke', 'AUDITOR', 'HQ001'),
-('opsadmin1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Grace Akinyi', 'grace@bank.co.ke', 'OPS_ADMIN', 'HQ001');
+('teller1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Alice Mwangi', 'alice@bank.co.ke', 'MAKER', 'NRB001'),
+('teller2', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Bob Ochieng', 'bob@bank.co.ke', 'MAKER', 'NRB001'),
+('supervisor1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Carol Wanjiku', 'carol@bank.co.ke', 'CHECKER', 'NRB001'),
+('manager1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'David Kamau', 'david@bank.co.ke', 'BRANCH_MANAGER', 'NRB001'),
+('admin1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Eve Njeri', 'eve@bank.co.ke', 'SYSTEM_ADMIN', 'HQ001'),
+('auditor1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Frank Kiprop', 'frank@bank.co.ke', 'AUDITOR', 'HQ001'),
+('opsadmin1', '$2b$10$N6GK3iUy.cFLpF8jv5QXYOnG7UMaCwogG1sAFedHoJK3r8sskl5yG', 'Grace Akinyi', 'grace@bank.co.ke', 'OPS_ADMIN', 'HQ001');
 
 -- ============================================
 -- SEED DATA: ROLE MAPPINGS
@@ -226,10 +226,10 @@ INSERT INTO fs_role_mappings (bank_role, formsync_role, permissions) VALUES
 -- SEED DATA: WORKFLOW RULES
 -- ============================================
 INSERT INTO fs_workflow_rules (rule_name, journey_type, condition_field, condition_op, condition_value, required_tiers, approval_mode, tier_roles, priority) VALUES
-('Cash Deposit Auto-Approve', 'CASH_DEPOSIT', 'amount', 'LTE', '500000', 0, 'NONE', '[]', 10),
+('Cash Deposit Standard', 'CASH_DEPOSIT', 'amount', 'LTE', '500000', 1, 'SEQUENTIAL', '["CHECKER"]', 10),
 ('Cash Deposit Supervisor', 'CASH_DEPOSIT', 'amount', 'GT', '500000', 1, 'SEQUENTIAL', '["CHECKER"]', 20),
 ('Cash Deposit High Value', 'CASH_DEPOSIT', 'amount', 'GT', '1000000', 2, 'SEQUENTIAL', '["CHECKER","BRANCH_MANAGER"]', 30),
-('Cash Withdrawal Standard', 'CASH_WITHDRAWAL', 'amount', 'LTE', '500000', 0, 'NONE', '[]', 10),
+('Cash Withdrawal Standard', 'CASH_WITHDRAWAL', 'amount', 'LTE', '500000', 1, 'SEQUENTIAL', '["CHECKER"]', 10),
 ('Cash Withdrawal Supervisor', 'CASH_WITHDRAWAL', 'amount', 'GT', '500000', 1, 'SEQUENTIAL', '["CHECKER"]', 20),
 ('Cash Withdrawal High Value', 'CASH_WITHDRAWAL', 'amount', 'GT', '1000000', 3, 'SEQUENTIAL', '["CHECKER","BRANCH_MANAGER","OPS_ADMIN"]', 30),
 ('Funds Transfer All', 'FUNDS_TRANSFER', 'amount', 'GT', '0', 1, 'SEQUENTIAL', '["CHECKER"]', 10),

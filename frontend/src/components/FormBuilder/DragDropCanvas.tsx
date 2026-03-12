@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../Icon';
 import { useTheme } from '../../context/ThemeContext';
 import { FormField, FormSection } from '../../types';
+import { getElevation } from '../../utils/styles';
 
 interface DragDropCanvasProps {
   sections: FormSection[];
@@ -27,7 +28,7 @@ export default function DragDropCanvas({ sections, onFieldPress, onMoveField, on
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {sections.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="layers-outline" size={48} color={theme.textSecondary} />
@@ -35,15 +36,33 @@ export default function DragDropCanvas({ sections, onFieldPress, onMoveField, on
         </View>
       ) : (
         sections.map((section, sIdx) => (
-          <View key={section.id} style={[styles.section, { borderColor: theme.accentColor + '30' }]}>
-            <View style={[styles.sectionHeader, { backgroundColor: theme.accentColor + '10' }]}>
+          <View
+            key={section.id}
+            style={[
+              styles.section,
+              {
+                backgroundColor: theme.surfaceElevated,
+                borderColor: theme.accentColor + '30',
+              }
+            ]}
+          >
+            <View style={[styles.sectionHeader, { backgroundColor: theme.accentColor + '12' }]}>
               <Text style={[styles.sectionTitle, { color: theme.accentColor }]}>{section.title}</Text>
               <TouchableOpacity onPress={() => onDeleteSection(sIdx)}>
                 <Ionicons name="trash-outline" size={18} color={theme.dangerColor} />
               </TouchableOpacity>
             </View>
             {section.fields.map((field, fIdx) => (
-              <View key={field.id} style={[styles.fieldItem, { backgroundColor: theme.surfaceColor }]}>
+              <View
+                key={field.id}
+                style={[
+                  styles.fieldItem,
+                  {
+                    backgroundColor: theme.surfaceColor,
+                    borderTopColor: theme.borderColor,
+                  }
+                ]}
+              >
                 <TouchableOpacity style={styles.fieldContent} onPress={() => onFieldPress(sIdx, fIdx)}>
                   <Ionicons name={fieldTypeIcon(field.type) as any} size={18} color={theme.primaryColor} />
                   <View style={styles.fieldInfo}>
@@ -82,10 +101,21 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   emptyState: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 14, marginTop: 12, textAlign: 'center', paddingHorizontal: 40 },
-  section: { margin: 12, borderWidth: 1.5, borderRadius: 12, overflow: 'hidden' },
+  section: {
+    margin: 12,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 },
   sectionTitle: { fontSize: 14, fontWeight: '700' },
-  fieldItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 0.5, borderTopColor: '#E0E0E0' },
+  fieldItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderTopWidth: 0.5,
+  },
   fieldContent: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldInfo: { flex: 1 },
   fieldLabel: { fontSize: 13, fontWeight: '600' },

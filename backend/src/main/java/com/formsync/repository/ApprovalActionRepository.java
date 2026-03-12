@@ -7,4 +7,5 @@ import java.util.List;
 public interface ApprovalActionRepository extends JpaRepository<ApprovalAction, Long> {
     List<ApprovalAction> findByWorkflowIdOrderByCreatedAtAsc(Long workflowId);
     List<ApprovalAction> findByFormInstanceIdOrderByCreatedAtAsc(Long formInstanceId);
+    List<ApprovalAction> findByActorIdOrderByCreatedAtDesc(String actorId);
 }

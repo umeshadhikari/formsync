@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coral Bank FormSync — Demo Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --coral: #F35B54;
+    --navy: #14233C;
+    --soft-white: #F7F7F8;
+    --success: #2E7D32;
+    --warning: #F57C00;
+    --info: #1565C0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #333;
+    line-height: 1.6;
+    background: #fff;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  /* Cover Section */
+  .cover {
+    text-align: center;
+    padding: 80px 0 60px;
+    border-bottom: 4px solid var(--coral);
+    margin-bottom: 48px;
+  }
+  .cover .logo {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -1px;
+  }
+  .cover .logo span { color: var(--coral); }
+  .cover .subtitle {
+    font-size: 20px;
+    color: #666;
+    margin-top: 8px;
+    font-weight: 300;
+  }
+  .cover h1 {
+    font-size: 36px;
+    color: var(--navy);
+    margin-top: 40px;
+    font-weight: 700;
+  }
+  .cover .date {
+    font-size: 14px;
+    color: #999;
+    margin-top: 16px;
+  }
+
+  /* Section headings */
+  h2 {
+    font-size: 24px;
+    color: var(--navy);
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--coral);
+  }
+  h3 {
+    font-size: 18px;
+    color: var(--navy);
+    margin: 32px 0 12px;
+  }
+  h4 {
+    font-size: 15px;
+    color: var(--coral);
+    margin: 20px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  p { margin: 8px 0; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+  th {
+    background: var(--navy);
+    color: #fff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  code {
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  /* Scenario Cards */
+  .scenario {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-left: 5px solid var(--coral);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+  .scenario.green { border-left-color: var(--success); }
+  .scenario.blue { border-left-color: var(--info); }
+  .scenario.orange { border-left-color: var(--warning); }
+
+  .scenario h3 {
+    margin-top: 0;
+    color: var(--navy);
+  }
+
+  /* Steps */
+  .steps {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+  }
+  .steps li {
+    counter-increment: step;
+    padding: 12px 0 12px 48px;
+    position: relative;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 32px;
+    height: 32px;
+    background: var(--coral);
+    color: #fff;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 32px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .steps li strong { color: var(--navy); }
+
+  .steps.green li::before { background: var(--success); }
+  .steps.blue li::before { background: var(--info); }
+  .steps.orange li::before { background: var(--warning); }
+
+  /* Info boxes */
+  .info-box {
+    background: #E3F2FD;
+    border-left: 4px solid var(--info);
+    padding: 14px 18px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+  }
+  .tip-box {
+    background: #FFF3E0;
+    border-left: 4px solid var(--warning);
+    padding: 14px 18px;
+    margin: 16px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge.coral { background: #FDE8E7; color: var(--coral); }
+  .badge.green { background: #E8F5E9; color: var(--success); }
+  .badge.navy { background: #E8EAF6; color: var(--navy); }
+
+  /* Print styles */
+  @media print {
+    body { padding: 20px; max-width: 100%; }
+    .scenario { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+
+  .field-table td:first-child {
+    font-weight: 600;
+    width: 200px;
+    color: var(--navy);
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="logo">Coral<span>Bank</span></div>
+  <div class="subtitle">Digital Banking Platform</div>
+  <h1>FormSync Demo Guide</h1>
+  <div class="date">March 2026 &bull; Version 1.0</div>
+</div>
+
+<!-- CREDENTIALS -->
+<h2>1. Login Credentials</h2>
+<p>All demo accounts use the same password. The system URL is <code>http://localhost:8081</code> (frontend) with the backend API on <code>http://localhost:8080</code>.</p>
+
+<table>
+  <tr>
+    <th>Username</th>
+    <th>Password</th>
+    <th>Role</th>
+    <th>Capabilities</th>
+  </tr>
+  <tr>
+    <td><code>teller1</code></td>
+    <td><code>demo123</code></td>
+    <td><span class="badge coral">Teller (MAKER)</span></td>
+    <td>Create, fill, submit forms; view own submissions</td>
+  </tr>
+  <tr>
+    <td><code>supervisor1</code></td>
+    <td><code>demo123</code></td>
+    <td><span class="badge green">Supervisor (CHECKER)</span></td>
+    <td>Tier 1 approvals, claim/pickup queue items</td>
+  </tr>
+  <tr>
+    <td><code>manager1</code></td>
+    <td><code>demo123</code></td>
+    <td><span class="badge navy">Manager (BRANCH_MANAGER)</span></td>
+    <td>Tier 2 approvals, override capability</td>
+  </tr>
+  <tr>
+    <td><code>admin1</code></td>
+    <td><code>demo123</code></td>
+    <td><span class="badge coral">Admin (SYSTEM_ADMIN)</span></td>
+    <td>User management, roles, themes, workflow rules</td>
+  </tr>
+  <tr>
+    <td><code>auditor1</code></td>
+    <td><code>demo123</code></td>
+    <td><span class="badge green">Auditor (AUDITOR)</span></td>
+    <td>Read-only audit trail, compliance monitoring</td>
+  </tr>
+</table>
+
+<!-- PRE-LOADED DATA -->
+<h2>2. Pre-Loaded Demo Data</h2>
+<p>The following forms have been pre-created for the demo. They are associated with <code>teller1</code>'s account at branch <code>NRB-001</code>.</p>
+
+<table>
+  <tr>
+    <th>Reference</th>
+    <th>Type</th>
+    <th>Customer</th>
+    <th>Amount (KES)</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>CD-20260312-923D2C</code></td>
+    <td>Cash Deposit</td>
+    <td>James Kariuki</td>
+    <td>250,000</td>
+    <td><span class="badge navy">Draft</span></td>
+  </tr>
+  <tr>
+    <td><code>CD-20260312-F01BDA</code></td>
+    <td>Cash Deposit</td>
+    <td>Wanjiku Enterprises Ltd</td>
+    <td>1,500,000</td>
+    <td><span class="badge coral">Pending Approval</span></td>
+  </tr>
+  <tr>
+    <td><code>CW-20260312-AF3B86</code></td>
+    <td>Cash Withdrawal</td>
+    <td>Peter Omondi</td>
+    <td>750,000</td>
+    <td><span class="badge coral">Pending Approval</span></td>
+  </tr>
+  <tr>
+    <td><code>FT-20260312-A1E8BA</code></td>
+    <td>Funds Transfer</td>
+    <td>Amina Hassan</td>
+    <td>500,000</td>
+    <td><span class="badge navy">Draft</span></td>
+  </tr>
+</table>
+
+<div class="info-box">
+  <strong>Note:</strong> The KES 1,500,000 deposit triggers <strong>2-tier approval</strong> (Supervisor → Manager) based on the configured workflow rules. All cash deposits and withdrawals require at least <strong>1-tier supervisor approval</strong>. Amounts over KES 500,000 escalate to 2-tier (adds Branch Manager).
+</div>
+
+<!-- SCENARIO 1 -->
+<h2>3. Demo Scenarios</h2>
+
+<div class="scenario">
+  <h3>Scenario A: End-to-End Cash Deposit (Create → Submit → Approve)</h3>
+  <p>Demonstrates the full lifecycle from form creation by a teller through supervisor approval.</p>
+
+  <h4>Part 1 — Teller Creates &amp; Submits (login as teller1)</h4>
+  <ol class="steps">
+    <li><strong>Login</strong> as <code>teller1</code> / <code>demo123</code>. You'll land on the Dashboard showing recent submissions and quick stats.</li>
+    <li><strong>Tap "New Form"</strong> (the ＋ button or "New Form" action). Select the <strong>"Cash Deposit"</strong> template from the list.</li>
+    <li><strong>Fill in the form fields:</strong>
+      <table class="field-table">
+        <tr><td>Customer Name</td><td>Sarah Wambui</td></tr>
+        <tr><td>Account Number</td><td>0112345678</td></tr>
+        <tr><td>ID Number</td><td>28456123</td></tr>
+        <tr><td>Deposit Amount</td><td>350,000</td></tr>
+        <tr><td>Currency</td><td>KES</td></tr>
+        <tr><td>Source of Funds</td><td>Business Revenue</td></tr>
+        <tr><td>Denomination Breakdown</td><td>1000×200, 500×100, 200×250</td></tr>
+      </table>
+    </li>
+    <li><strong>Tap "Submit"</strong>. The system generates a reference number (e.g., <code>CD-20260312-XXXXXX</code>) and routes it for approval. A confirmation screen with the reference number appears.</li>
+    <li><strong>Check Dashboard</strong> — the form now appears under "Recent Submissions" with status <span class="badge coral">Pending Approval</span>.</li>
+  </ol>
+
+  <h4>Part 2 — Supervisor Approves (login as supervisor1)</h4>
+  <ol class="steps green">
+    <li><strong>Login</strong> as <code>supervisor1</code> / <code>demo123</code>. Navigate to the <strong>Approvals</strong> screen.</li>
+    <li>In the <strong>"My Queue"</strong> tab, you'll see the cash deposit from Sarah Wambui. Notice the claim status shows "Unclaimed".</li>
+    <li><strong>Tap "Pick Up"</strong> to claim the form. The button changes to "Review" and other supervisors will see "Claimed by supervisor1".</li>
+    <li><strong>Tap "Review"</strong> to open the form details. Review the customer information, amount, and denomination breakdown.</li>
+    <li><strong>Tap "Approve"</strong>, add an optional comment (e.g., "Verified ID, funds source confirmed"), and confirm.</li>
+    <li>The form status changes to <span class="badge green">Approved</span>. Check the <strong>"My Items"</strong> tab to see it in your action history.</li>
+  </ol>
+</div>
+
+<!-- SCENARIO 2 -->
+<div class="scenario orange">
+  <h3>Scenario B: High-Value Multi-Tier Approval</h3>
+  <p>Demonstrates the 2-tier approval chain triggered by amounts over KES 1,000,000.</p>
+
+  <div class="tip-box">
+    <strong>Pre-loaded:</strong> The Wanjiku Enterprises deposit (KES 1,500,000, ref: <code>CD-20260312-F01BDA</code>) is already submitted and waiting for Tier 1 approval.
+  </div>
+
+  <h4>Tier 1 — Supervisor Approval</h4>
+  <ol class="steps orange">
+    <li><strong>Login as <code>supervisor1</code></strong>. Go to <strong>Approvals → My Queue</strong>.</li>
+    <li>Find the <strong>Wanjiku Enterprises</strong> deposit (KES 1,500,000). Notice the <span class="badge coral">2-Tier</span> indicator.</li>
+    <li><strong>Pick Up</strong> the form, review the details, then <strong>Approve</strong> with comment: "Tier 1 verified — large deposit, escalating to Branch Manager."</li>
+    <li>The status changes to <span class="badge coral">Pending Tier 2</span>. The form is now in the Branch Manager's queue.</li>
+  </ol>
+
+  <h4>Tier 2 — Manager Approval</h4>
+  <ol class="steps green">
+    <li><strong>Login as <code>manager1</code></strong>. Go to <strong>Approvals → My Queue</strong>.</li>
+    <li>The Wanjiku Enterprises deposit now appears in your queue (it wasn't visible before Tier 1 was complete).</li>
+    <li><strong>Pick Up</strong>, review (including the Tier 1 approval from supervisor1 in the timeline), then <strong>Approve</strong>.</li>
+    <li>Final status: <span class="badge green">Approved</span>. The approval timeline shows both tiers with timestamps and comments.</li>
+  </ol>
+</div>
+
+<!-- SCENARIO 3 -->
+<div class="scenario blue">
+  <h3>Scenario C: Creating a New Form Template (Admin)</h3>
+  <p>Demonstrates how an admin configures new form types for the organization.</p>
+
+  <ol class="steps blue">
+    <li><strong>Login as <code>admin1</code></strong>. Navigate to <strong>Templates</strong> from the bottom navigation.</li>
+    <li><strong>Tap "Create Template"</strong>. Enter the template name: <strong>"Account Opening — Savings"</strong>. Set Journey Type to <strong>ACCOUNT_OPENING</strong>.</li>
+    <li><strong>Add form fields</strong> using the field builder:
+      <table class="field-table">
+        <tr><td>Customer Full Name</td><td>Text field, required</td></tr>
+        <tr><td>National ID Number</td><td>Number field, required</td></tr>
+        <tr><td>Date of Birth</td><td>Date field, required</td></tr>
+        <tr><td>Phone Number</td><td>Phone field, required</td></tr>
+        <tr><td>Email Address</td><td>Email field, optional</td></tr>
+        <tr><td>Initial Deposit Amount</td><td>Currency field, required</td></tr>
+        <tr><td>KRA PIN</td><td>Text field, required</td></tr>
+        <tr><td>Next of Kin Name</td><td>Text field, required</td></tr>
+        <tr><td>Next of Kin Phone</td><td>Phone field, required</td></tr>
+      </table>
+    </li>
+    <li><strong>Save</strong> the template. It's initially in <span class="badge navy">Draft</span> status.</li>
+    <li><strong>Tap "Publish"</strong> to make it available to all tellers. Status changes to <span class="badge green">Published</span>.</li>
+    <li><strong>Switch to <code>teller1</code></strong> and verify the new template appears in the "New Form" template list.</li>
+  </ol>
+</div>
+
+<!-- SCENARIO 4 -->
+<div class="scenario green">
+  <h3>Scenario D: Admin Features Tour</h3>
+  <p>Quick walkthrough of admin capabilities.</p>
+
+  <ol class="steps green">
+    <li><strong>Login as <code>admin1</code></strong>. Go to <strong>Admin</strong> panel from bottom navigation.</li>
+    <li><strong>Users tab</strong> — View all system users, their roles, and active status. Shows branch assignments.</li>
+    <li><strong>Roles tab</strong> — View the 7 role mappings (e.g., "Branch Teller" maps to system role MAKER with permissions like FORM_CREATE, FORM_SUBMIT). Each card shows the role's color, permissions as chips, and scope.</li>
+    <li><strong>Rules tab</strong> — Tap to open Workflow Configuration. See approval rules organized by journey type (Cash Deposit, Cash Withdrawal, etc.). Each rule shows amount thresholds and tier configuration. Filter by journey type using the pills at the top.</li>
+    <li><strong>Themes tab</strong> — View available themes. The active "Coral Bank" theme shows the brand colors. You can create additional themes for white-labeling.</li>
+    <li><strong>Toggle dark mode</strong> using the theme switcher to show the adaptive theming — the entire UI adjusts with Deep Navy backgrounds and coral accents.</li>
+  </ol>
+</div>
+
+<!-- SCENARIO 5 -->
+<h2>4. Search &amp; Cross-Role Features</h2>
+
+<div class="scenario">
+  <h3>Historical Search</h3>
+  <ol class="steps">
+    <li>From the <strong>Approvals</strong> screen (as any supervisor/manager), tap the <strong>"Search"</strong> tab.</li>
+    <li>Try searching by <strong>reference number</strong>: type <code>CD-2026</code> to find all cash deposits from 2026.</li>
+    <li>Use <strong>filter chips</strong>: select "Cash Deposit" journey type, set status to "Approved", and optionally set a date range.</li>
+    <li>Results appear as cards showing the form summary, status, and submission date. Tap any card to view the full form and approval timeline.</li>
+  </ol>
+</div>
+
+<div class="scenario blue">
+  <h3>My Items — Track Your Activity</h3>
+  <ol class="steps blue">
+    <li>From the <strong>Approvals</strong> screen, tap the <strong>"My Items"</strong> tab.</li>
+    <li>This shows all forms you've either <strong>created</strong> or <strong>actioned</strong> (approved/rejected/returned).</li>
+    <li>Each item shows your relationship: "You submitted", "You approved at Tier 1", etc.</li>
+    <li>Great for tracking your daily activity and finding forms you've previously worked on.</li>
+  </ol>
+</div>
+
+<!-- KEY TALKING POINTS -->
+<h2>5. Key Talking Points</h2>
+
+<table>
+  <tr>
+    <th>Feature</th>
+    <th>Business Value</th>
+  </tr>
+  <tr>
+    <td><strong>Role-Based Queue</strong></td>
+    <td>Supervisors only see items they're authorized to approve — no confusion about who handles what. Reduces errors and speeds up processing.</td>
+  </tr>
+  <tr>
+    <td><strong>Claim/Pickup</strong></td>
+    <td>Prevents duplicate work — when one supervisor claims a form, others see it's taken. Claims auto-expire after 15 minutes if not actioned.</td>
+  </tr>
+  <tr>
+    <td><strong>Multi-Tier Approval</strong></td>
+    <td>High-value transactions automatically require additional approval layers. Configurable thresholds per transaction type — no code changes needed.</td>
+  </tr>
+  <tr>
+    <td><strong>Approval Timeline</strong></td>
+    <td>Complete audit trail showing who approved what, when, and with what comments. Essential for compliance and regulatory requirements.</td>
+  </tr>
+  <tr>
+    <td><strong>Configurable Workflow Rules</strong></td>
+    <td>Business users (admins) can adjust approval thresholds and tier requirements without developer involvement. Add new journey types on the fly.</td>
+  </tr>
+  <tr>
+    <td><strong>White-Label Theming</strong></td>
+    <td>Fully branded experience with Coral Bank identity. Light and dark mode support. Themeable for different bank clients from the admin panel.</td>
+  </tr>
+  <tr>
+    <td><strong>Dynamic Form Templates</strong></td>
+    <td>Create any form type through the admin UI — no coding required. Supports text, number, currency, date, phone, email, dropdown, checkbox fields.</td>
+  </tr>
+  <tr>
+    <td><strong>Offline-Ready Architecture</strong></td>
+    <td>React Native foundation supports future offline mode for branch locations with intermittent connectivity.</td>
+  </tr>
+</table>
+
+<!-- WORKFLOW RULES -->
+<h2>6. Default Workflow Rules Reference</h2>
+<p>These rules are pre-configured and can be modified by admins in the Workflow Configuration screen.</p>
+
+<table>
+  <tr>
+    <th>Journey Type</th>
+    <th>Amount Range (KES)</th>
+    <th>Approval Tiers</th>
+    <th>Roles Required</th>
+  </tr>
+  <tr>
+    <td>Cash Deposit</td>
+    <td>0 – 500,000</td>
+    <td>1 tier</td>
+    <td>Supervisor (CHECKER)</td>
+  </tr>
+  <tr>
+    <td>Cash Deposit</td>
+    <td>500,001+</td>
+    <td>2 tiers</td>
+    <td>Supervisor → Branch Manager</td>
+  </tr>
+  <tr>
+    <td>Cash Withdrawal</td>
+    <td>0 – 500,000</td>
+    <td>1 tier</td>
+    <td>Supervisor (CHECKER)</td>
+  </tr>
+  <tr>
+    <td>Cash Withdrawal</td>
+    <td>500,001+</td>
+    <td>2 tiers</td>
+    <td>Supervisor → Branch Manager</td>
+  </tr>
+  <tr>
+    <td>Funds Transfer</td>
+    <td>0 – 1,000,000</td>
+    <td>1 tier</td>
+    <td>Supervisor (CHECKER)</td>
+  </tr>
+  <tr>
+    <td>Funds Transfer</td>
+    <td>1,000,001 – 10,000,000</td>
+    <td>2 tiers</td>
+    <td>Supervisor → Branch Manager</td>
+  </tr>
+  <tr>
+    <td>Account Opening</td>
+    <td>Any</td>
+    <td>1 tier</td>
+    <td>Supervisor (CHECKER)</td>
+  </tr>
+  <tr>
+    <td>KYC Update</td>
+    <td>Any</td>
+    <td>1 tier</td>
+    <td>Supervisor (CHECKER)</td>
+  </tr>
+</table>
+
+<div class="tip-box">
+  <strong>Demo Tip:</strong> To showcase the workflow rules, login as <code>admin1</code>, go to Admin → Rules tab, and show how thresholds can be adjusted in real-time. Changes take effect immediately for new submissions.
+</div>
+
+<!-- FOOTER -->
+<div style="margin-top: 64px; padding-top: 24px; border-top: 2px solid #e0e0e0; text-align: center; color: #999; font-size: 13px;">
+  <p><strong style="color: var(--coral);">Coral</strong><strong style="color: var(--navy);">Bank</strong> FormSync &bull; Confidential Demo Document &bull; March 2026</p>
+</div>
+
+</body>
+</html>

@@ -17,9 +17,26 @@ public class WorkflowInstance {
     @Column(name = "approval_mode") private String approvalMode;
     @Column(name = "sla_deadline") private LocalDateTime slaDeadline;
     private Boolean escalated;
+    @Column(name = "claimed_by") private String claimedBy;
+    @Column(name = "claimed_by_name") private String claimedByName;
+    @Column(name = "claimed_at") private LocalDateTime claimedAt;
+
+    // ── Resubmission Tracking (V6) ──
+    @Column(name = "resubmission_count")
+    private Integer resubmissionCount = 0;
+
+    @Column(name = "original_workflow_id")
+    private Long originalWorkflowId;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    @Column(name = "return_instructions", columnDefinition = "TEXT")
+    private String returnInstructions;
+
     @Column(name = "created_at") private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
 
-    @PrePersist protected void onCreate() { createdAt = updatedAt = LocalDateTime.now(); if (currentState == null) currentState = "PENDING"; if (currentTier == null) currentTier = 0; }
+    @PrePersist protected void onCreate() { createdAt = updatedAt = LocalDateTime.now(); if (currentState == null) currentState = "PENDING"; if (currentTier == null) currentTier = 0; if (resubmissionCount == null) resubmissionCount = 0; }
     @PreUpdate protected void onUpdate() { updatedAt = LocalDateTime.now(); }
 }

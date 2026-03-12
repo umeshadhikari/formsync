@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from './Icon';
 import { FormSchema, FormField, FormSection } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { getGlassStyle, getGlowShadow, getElevation, getInputStyle, getStatusGlow, typography } from '../utils/styles';
 
 interface FormRendererProps {
   schema: FormSchema;
@@ -43,11 +44,11 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
         return (
           <View key={field.id} style={styles.fieldGroup}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>{field.label}{field.required && <Text style={{ color: theme.dangerColor }}> *</Text>}</Text>
-            <TextInput style={[styles.input, { borderColor: error ? theme.dangerColor : '#DDD' }, readOnly && styles.readOnly]}
+            <TextInput style={[styles.input, getInputStyle(theme, false, !!error), readOnly && { backgroundColor: theme.surfaceElevated, opacity: 0.6 }]}
               value={value || ''} onChangeText={v => onChange(field.id, v)} placeholder={field.placeholder}
               keyboardType={field.type === 'phone' ? 'phone-pad' : field.type === 'email' ? 'email-address' : 'default'}
               editable={!readOnly} placeholderTextColor={theme.textSecondary} />
-            {field.helpText && <Text style={[styles.helpText, { color: theme.textSecondary }]}>{field.helpText}</Text>}
+            {field.helpText && <Text style={[styles.helpText, { color: theme.textTertiary }]}>{field.helpText}</Text>}
             {error && <Text style={[styles.errorText, { color: theme.dangerColor }]}>{error}</Text>}
           </View>
         );
@@ -55,7 +56,7 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
         return (
           <View key={field.id} style={styles.fieldGroup}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>{field.label}{field.required && <Text style={{ color: theme.dangerColor }}> *</Text>}</Text>
-            <TextInput style={[styles.input, { borderColor: error ? theme.dangerColor : '#DDD' }, readOnly && styles.readOnly]}
+            <TextInput style={[styles.input, getInputStyle(theme, false, !!error), readOnly && { backgroundColor: theme.surfaceElevated, opacity: 0.6 }]}
               value={value?.toString() || ''} onChangeText={v => onChange(field.id, v)} placeholder={field.placeholder}
               keyboardType="numeric" editable={!readOnly} placeholderTextColor={theme.textSecondary} />
             {error && <Text style={[styles.errorText, { color: theme.dangerColor }]}>{error}</Text>}
@@ -65,7 +66,7 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
         return (
           <View key={field.id} style={styles.fieldGroup}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>{field.label}{field.required && <Text style={{ color: theme.dangerColor }}> *</Text>}</Text>
-            <TextInput style={[styles.input, styles.textarea, { borderColor: error ? theme.dangerColor : '#DDD' }, readOnly && styles.readOnly]}
+            <TextInput style={[styles.input, styles.textarea, getInputStyle(theme, false, !!error), readOnly && { backgroundColor: theme.surfaceElevated, opacity: 0.6 }]}
               value={value || ''} onChangeText={v => onChange(field.id, v)} placeholder={field.placeholder}
               multiline numberOfLines={3} editable={!readOnly} placeholderTextColor={theme.textSecondary} />
             {error && <Text style={[styles.errorText, { color: theme.dangerColor }]}>{error}</Text>}
@@ -75,7 +76,7 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
         return (
           <View key={field.id} style={styles.fieldGroup}>
             <Text style={[styles.label, { color: theme.textPrimary }]}>{field.label}{field.required && <Text style={{ color: theme.dangerColor }}> *</Text>}</Text>
-            <TextInput style={[styles.input, { borderColor: error ? theme.dangerColor : '#DDD' }, readOnly && styles.readOnly]}
+            <TextInput style={[styles.input, getInputStyle(theme, false, !!error), readOnly && { backgroundColor: theme.surfaceElevated, opacity: 0.6 }]}
               value={value || ''} onChangeText={v => onChange(field.id, v)} placeholder="YYYY-MM-DD"
               editable={!readOnly} placeholderTextColor={theme.textSecondary} />
             {error && <Text style={[styles.errorText, { color: theme.dangerColor }]}>{error}</Text>}
@@ -87,9 +88,9 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
             <Text style={[styles.label, { color: theme.textPrimary }]}>{field.label}{field.required && <Text style={{ color: theme.dangerColor }}> *</Text>}</Text>
             <View style={styles.optionGroup}>
               {field.options?.map(opt => (
-                <TouchableOpacity key={opt.value} style={[styles.optionChip, value === opt.value && { backgroundColor: theme.primaryColor }]}
+                <TouchableOpacity key={opt.value} style={[styles.optionChip, { borderColor: theme.borderColor, backgroundColor: value === opt.value ? theme.surfaceGlass : 'transparent' }, value === opt.value && { borderColor: theme.accentColor }]}
                   onPress={() => !readOnly && onChange(field.id, opt.value)} disabled={readOnly}>
-                  <Text style={[styles.optionText, value === opt.value && { color: '#FFF' }]}>{opt.label}</Text>
+                  <Text style={[styles.optionText, { color: value === opt.value ? theme.accentColor : theme.textSecondary }]}>{opt.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -131,7 +132,7 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
   return (
     <View>
       {schema.sections.map((section: FormSection) => (
-        <View key={section.id} style={[styles.section, { backgroundColor: theme.surfaceColor }]}>
+        <View key={section.id} style={[styles.section, { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor }, getElevation(2, theme)]}>
           <Text style={[styles.sectionTitle, { color: theme.primaryColor }]}>{section.title}</Text>
           {section.description && <Text style={[styles.sectionDesc, { color: theme.textSecondary }]}>{section.description}</Text>}
           {section.fields.map(renderField)}
@@ -142,22 +143,21 @@ export default function FormRenderer({ schema, values, onChange, errors, readOnl
 }
 
 const styles = StyleSheet.create({
-  section: { marginBottom: 12, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  sectionDesc: { fontSize: 12, marginBottom: 12 },
-  sectionHeader: { fontSize: 15, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+  section: { marginBottom: 12, borderRadius: 12, padding: 16, borderWidth: 1 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4, ...typography.heading },
+  sectionDesc: { fontSize: 12, marginBottom: 12, ...typography.body },
+  sectionHeader: { fontSize: 15, fontWeight: '700', marginTop: 12, marginBottom: 6, ...typography.heading },
   fieldGroup: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 5 },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 5, ...typography.label },
   input: { borderWidth: 1.5, borderRadius: 8, padding: 12, fontSize: 15 },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
-  readOnly: { backgroundColor: '#F5F5F5' },
-  helpText: { fontSize: 11, marginTop: 3 },
-  errorText: { fontSize: 11, marginTop: 3 },
+  helpText: { fontSize: 11, marginTop: 3, ...typography.caption },
+  errorText: { fontSize: 11, marginTop: 3, ...typography.caption },
   optionGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  optionChip: { borderWidth: 1, borderColor: '#DDD', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  optionText: { fontSize: 13 },
+  optionChip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  optionText: { fontSize: 13, fontWeight: '500' },
   radioRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 },
-  radioLabel: { fontSize: 14 },
+  radioLabel: { fontSize: 14, ...typography.body },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  checkboxLabel: { fontSize: 14 },
+  checkboxLabel: { fontSize: 14, ...typography.body },
 });

@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../Icon';
 import { useTheme } from '../../context/ThemeContext';
+import { getGlassStyle } from '../../utils/styles';
 
 const FIELD_TYPES = [
   { type: 'text', label: 'Text Input', icon: 'text-outline' },
@@ -26,12 +27,21 @@ export default function FieldPalette({ onAddField }: FieldPaletteProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <Text style={[styles.title, { color: theme.textPrimary }]}>Field Types</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {FIELD_TYPES.map(ft => (
-          <TouchableOpacity key={ft.type} style={[styles.fieldTile, { backgroundColor: theme.surfaceColor, borderColor: theme.accentColor + '30' }]}
-            onPress={() => onAddField(ft.type)}>
+          <TouchableOpacity
+            key={ft.type}
+            style={[
+              styles.fieldTile,
+              {
+                ...getGlassStyle(theme),
+                borderColor: theme.accentColor + '40',
+              }
+            ]}
+            onPress={() => onAddField(ft.type)}
+          >
             <Ionicons name={ft.icon as any} size={22} color={theme.accentColor} />
             <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>{ft.label}</Text>
           </TouchableOpacity>
@@ -45,6 +55,15 @@ const styles = StyleSheet.create({
   container: { paddingVertical: 12 },
   title: { fontSize: 14, fontWeight: '700', paddingHorizontal: 16, marginBottom: 8 },
   scrollContent: { paddingHorizontal: 12 },
-  fieldTile: { width: 90, height: 80, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginHorizontal: 4, padding: 8 },
+  fieldTile: {
+    width: 90,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4,
+    padding: 8,
+  },
   fieldLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center', marginTop: 4 },
 });
