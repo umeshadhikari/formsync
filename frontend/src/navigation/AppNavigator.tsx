@@ -64,7 +64,7 @@ function MainTabs() {
       <Tab.Screen name="MySubmissions" component={TellerSubmissionsWithNav}
         options={{ tabBarIcon: ({ color, size }) => <Ionicons name="folder-open" size={size} color={color} />, title: 'My Items' }} />
       {(isChecker || isAdmin) && (
-        <Tab.Screen name="Approvals" component={SupervisorDashboard}
+        <Tab.Screen name="Approvals" component={SupervisorDashboardWithNav}
           options={{ tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} /> }} />
       )}
       {isAdmin && (
@@ -115,6 +115,52 @@ function AdminWithNav() {
   return (
     <AdminPanel
       navigation={{ navigate: (name: string) => setSubScreen(name), goBack: () => setSubScreen(null), popToTop: () => setSubScreen(null) }}
+    />
+  );
+}
+
+function SupervisorDashboardWithNav({ navigation: tabNav }: any) {
+  const [subScreen, setSubScreen] = React.useState<{ name: string; params?: any } | null>(null);
+  const { theme } = useTheme();
+
+  React.useEffect(() => {
+    const unsubscribe = tabNav.addListener('tabPress', (e: any) => {
+      if (subScreen) {
+        e.preventDefault();
+        setSubScreen(null);
+      }
+    });
+    return unsubscribe;
+  }, [tabNav, subScreen]);
+
+  const subHeaderStyle = [
+    styles.subHeader,
+    { backgroundColor: theme.surfaceColor, borderBottomWidth: 1, borderBottomColor: theme.borderColor },
+    Platform.OS === 'web' ? { boxShadow: theme.isDark ? '0 2px 12px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)' } as any : {},
+  ];
+
+  if (subScreen?.name === 'FormDetail') {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.backgroundColor }}>
+        <View style={subHeaderStyle}>
+          <TouchableOpacity onPress={() => setSubScreen(null)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={theme.accentColor} />
+            <Text style={[styles.backText, { color: theme.accentColor }]}>Back</Text>
+          </TouchableOpacity>
+          <Text style={[styles.subHeaderTitle, { color: theme.textPrimary }]}>Form Details</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <FormDetailScreen
+          navigation={{ navigate: (name: string, params?: any) => setSubScreen({ name, params }), goBack: () => setSubScreen(null), popToTop: () => setSubScreen(null) }}
+          route={{ params: subScreen.params }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <SupervisorDashboard
+      navigation={{ navigate: (name: string, params?: any) => setSubScreen({ name, params }), goBack: () => setSubScreen(null), popToTop: () => setSubScreen(null) }}
     />
   );
 }

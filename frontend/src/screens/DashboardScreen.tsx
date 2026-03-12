@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Platform, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Platform, Modal, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '../components/Icon';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { JOURNEY_TYPES, DashboardStats, FormTemplate } from '../types';
 import api from '../api/client';
-import ApprovalTimeline from '../components/ApprovalTimeline';
 import AlertModal, { useAlert } from '../components/AlertModal';
 import { getGlassStyle, getElevation, getGlowShadow, getGradientStyle, typography } from '../utils/styles';
 
@@ -17,8 +16,6 @@ export default function DashboardScreen({ navigation }: any) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [recentForms, setRecentForms] = useState<any[]>([]);
-  const [statusModal, setStatusModal] = useState<{ form: any; workflow: any; history: any[] } | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
   const { alert, showAlert, hideAlert } = useAlert();
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,9 +24,6 @@ export default function DashboardScreen({ navigation }: any) {
   const [searchTotal, setSearchTotal] = useState(0);
   const [searchPage, setSearchPage] = useState(0);
 
-  // ── Resubmission State ──
-  const [resubmitInfo, setResubmitInfo] = useState<any>(null);
-  const [resubmitting, setResubmitting] = useState(false);
 
   const handleSearch = async (page = 0) => {
     if (!searchQuery.trim()) return;
@@ -78,76 +72,6 @@ export default function DashboardScreen({ navigation }: any) {
     }
   };
 
-  const openFormStatus = async (form: any) => {
-    setStatusModal({ form, workflow: null, history: [] });
-    setStatusLoading(true);
-    setResubmitInfo(null);
-    try {
-      const [workflow, history] = await Promise.all([
-        api.getWorkflowByForm(form.id).catch(() => null),
-        api.getApprovalHistory(form.id).catch(() => []),
-      ]);
-      // If workflow endpoint isn't available, infer from history + form status
-      const inferredWorkflow = workflow || inferWorkflow(form, history);
-      setStatusModal({ form, workflow: inferredWorkflow, history });
-
-      // Load resubmission info for rejected/returned forms
-      if (['REJECTED', 'RETURNED'].includes(form.status)) {
-        try {
-          const info = await api.getResubmissionInfo(form.id);
-          setResubmitInfo(info);
-        } catch { /* ignore */ }
-      }
-    } catch {
-      // Keep modal open with whatever data we have
-    } finally {
-      setStatusLoading(false);
-    }
-  };
-
-  const handleResubmit = async () => {
-    if (!statusModal?.form) return;
-    setResubmitting(true);
-    try {
-      await api.resubmitForm(statusModal.form.id);
-      showAlert('success', 'Resubmitted', 'Your form has been resubmitted for approval.');
-      setStatusModal(null);
-      setResubmitInfo(null);
-      loadData(); // Refresh the list
-    } catch (e: any) {
-      showAlert('error', 'Resubmit Failed', e.message);
-    } finally {
-      setResubmitting(false);
-    }
-  };
-
-  // Infer workflow state from approval history when backend endpoint is unavailable
-  const inferWorkflow = (form: any, history: any[]) => {
-    if (!history || history.length === 0) {
-      if (form.status === 'DRAFT') return null;
-      // Form submitted but no history yet — single tier pending
-      return { currentTier: 1, requiredTiers: 1, currentState: 'PENDING_TIER_1' };
-    }
-    const maxTier = Math.max(...history.map((a: any) => a.tier || 1));
-    const lastAction = history[history.length - 1];
-    const isTerminal = ['COMPLETED', 'REJECTED', 'RETURNED', 'FAILED'].includes(form.status);
-
-    if (isTerminal) {
-      return {
-        currentTier: maxTier,
-        requiredTiers: maxTier,
-        currentState: form.status === 'COMPLETED' ? 'COMPLETED' : form.status === 'REJECTED' ? 'REJECTED' : form.status === 'RETURNED' ? 'RETURNED' : 'FAILED',
-      };
-    }
-    // Still pending — currently at next tier after max approved
-    const approvedTiers = history.filter((a: any) => a.action === 'APPROVE').map((a: any) => a.tier);
-    const highestApproved = approvedTiers.length > 0 ? Math.max(...approvedTiers) : 0;
-    return {
-      currentTier: highestApproved + 1,
-      requiredTiers: Math.max(maxTier, highestApproved + 1),
-      currentState: `PENDING_TIER_${highestApproved + 1}`,
-    };
-  };
 
   const journeyKeys = Object.keys(JOURNEY_TYPES);
 
@@ -442,150 +366,6 @@ export default function DashboardScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      {/* Form Status Modal */}
-      <Modal visible={!!statusModal} animationType="slide" transparent>
-        <View style={[styles.statusModalOverlay, { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)' }]}>
-          <View style={[styles.statusModalContent, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
-            <View style={[styles.statusModalHeader, { borderBottomColor: theme.borderColor }]}>
-              <Text style={[styles.statusModalTitle, { color: theme.textPrimary }]}>Form Status</Text>
-              <TouchableOpacity onPress={() => setStatusModal(null)}>
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            {statusModal?.form && (
-              <ScrollView style={styles.statusModalBody}>
-                {/* Form Info Header */}
-                <Text style={[styles.statusRef, { color: theme.accentColor }]}>{statusModal.form.referenceNumber}</Text>
-                <Text style={[styles.statusJourney, { color: theme.textSecondary }]}>
-                  {JOURNEY_TYPES[statusModal.form.journeyType]?.label || statusModal.form.journeyType}
-                </Text>
-                <View style={styles.statusInfoRow}>
-                  <Text style={[styles.statusAmount, { color: theme.textPrimary }]}>
-                    {statusModal.form.currency} {statusModal.form.amount?.toLocaleString()}
-                  </Text>
-                  <View style={[styles.statusBadgeLg, {
-                    backgroundColor: getStatusColor(statusModal.form.status, theme) + '20',
-                    borderColor: getStatusColor(statusModal.form.status, theme) + '40',
-                  }]}>
-                    <Text style={[styles.statusBadgeLgText, { color: getStatusColor(statusModal.form.status, theme) }]}>
-                      {statusModal.form.status?.replace(/_/g, ' ')}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Timeline */}
-                {statusLoading ? (
-                  <View style={[{ backgroundColor: theme.surfaceElevated, borderRadius: 12, padding: 20, marginTop: 16, alignItems: 'center' }]}>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>Loading approval history...</Text>
-                  </View>
-                ) : statusModal.workflow ? (
-                  <ApprovalTimeline
-                    approvalHistory={statusModal.history}
-                    currentTier={statusModal.workflow.currentTier || 1}
-                    requiredTiers={statusModal.workflow.requiredTiers || 0}
-                    currentState={statusModal.workflow.currentState || ''}
-                    formStatus={statusModal.form.status}
-                    submittedAt={statusModal.form.submittedAt || statusModal.form.createdAt}
-                    submitterName={user?.fullName}
-                    tierRoles={statusModal.workflow.tierRoles}
-                    resubmissionCount={statusModal.form.resubmissionCount}
-                    rejectionReason={statusModal.form.lastRejectionReason}
-                    returnInstructions={statusModal.form.lastReturnInstructions}
-                  />
-                ) : statusModal.form.status === 'DRAFT' ? (
-                  <View style={[{ backgroundColor: theme.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.primaryColor || theme.accentColor, marginHorizontal: 0, marginTop: 0 }]}>
-                      Approval History
-                    </Text>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>This form has not been submitted yet.</Text>
-                  </View>
-                ) : (
-                  <View style={[{ backgroundColor: theme.surfaceElevated, borderRadius: 12, padding: 16, marginTop: 16 }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.primaryColor || theme.accentColor, marginHorizontal: 0, marginTop: 0 }]}>
-                      Approval History
-                    </Text>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>No workflow data available.</Text>
-                  </View>
-                )}
-
-                {/* Rejection / Return Info Banner */}
-                {statusModal.form.status === 'REJECTED' && statusModal.form.lastRejectionReason && (
-                  <View style={[styles.rejectionBanner, { backgroundColor: theme.dangerColor + '10', borderColor: theme.dangerColor + '30' }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Ionicons name="close-circle" size={16} color={theme.dangerColor} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: theme.dangerColor }}>Rejection Reason</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, color: theme.textPrimary, lineHeight: 18 }}>{statusModal.form.lastRejectionReason}</Text>
-                  </View>
-                )}
-                {statusModal.form.status === 'RETURNED' && statusModal.form.lastReturnInstructions && (
-                  <View style={[styles.rejectionBanner, { backgroundColor: theme.warningColor + '10', borderColor: theme.warningColor + '30' }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Ionicons name="arrow-undo" size={16} color={theme.warningColor} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: theme.warningColor }}>Correction Instructions</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, color: theme.textPrimary, lineHeight: 18 }}>{statusModal.form.lastReturnInstructions}</Text>
-                  </View>
-                )}
-
-                {/* Resubmission Info */}
-                {resubmitInfo && ['REJECTED', 'RETURNED'].includes(statusModal.form.status) && (
-                  <View style={[styles.resubmitSection, { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor }]}>
-                    {resubmitInfo.canResubmit ? (
-                      <>
-                        <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 8 }}>
-                          {resubmitInfo.remainingAttempts != null && resubmitInfo.remainingAttempts > 0
-                            ? `You can resubmit this form (${resubmitInfo.remainingAttempts} attempt${resubmitInfo.remainingAttempts !== 1 ? 's' : ''} remaining).`
-                            : 'You can resubmit this form for review.'}
-                        </Text>
-                        <TouchableOpacity
-                          style={[styles.resubmitBtn, { backgroundColor: theme.accentColor }]}
-                          onPress={handleResubmit}
-                          disabled={resubmitting}
-                        >
-                          {resubmitting ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons name="refresh" size={16} color="#FFF" />
-                              <Text style={styles.resubmitBtnText}>Resubmit for Approval</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="lock-closed" size={16} color={theme.dangerColor} />
-                        <Text style={{ fontSize: 13, color: theme.dangerColor, flex: 1 }}>
-                          {resubmitInfo.reason || 'This form cannot be resubmitted.'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {/* Resubmission Count Badge */}
-                {statusModal.form.resubmissionCount > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
-                    <Ionicons name="repeat" size={14} color={theme.textTertiary} />
-                    <Text style={{ fontSize: 12, color: theme.textTertiary }}>
-                      Resubmitted {statusModal.form.resubmissionCount} time{statusModal.form.resubmissionCount !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-            )}
-            <View style={styles.statusModalFooter}>
-              <TouchableOpacity
-                style={[styles.statusDoneBtn, { backgroundColor: theme.accentColor }]}
-                onPress={() => setStatusModal(null)}
-              >
-                <Text style={styles.statusDoneBtnText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
       <AlertModal alert={alert} onClose={hideAlert} />
     </ScrollView>
   );

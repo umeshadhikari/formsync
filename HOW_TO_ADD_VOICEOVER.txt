@@ -1,0 +1,17 @@
+HOW TO ADD YOUR PROFESSIONAL VOICEOVER
+=======================================
+
+Step 1: Record your voiceover
+   - Use ElevenLabs (free): https://elevenlabs.io
+   - Or any TTS/recording tool
+   - Use the script in: voiceover_script.txt
+   - Export as MP3 or WAV
+
+Step 2: Merge with video using ffmpeg
+   Run this command (replace YOUR_VOICEOVER.mp3 with your file):
+
+   ffmpeg -i FormSync_Demo_NoAudio.mp4 -i YOUR_VOICEOVER.mp3 \
+     -c:v copy -c:a aac -b:a 192k -shortest \
+     -movflags +faststart FormSync_Demo_Final.mp4
+
+That's it! The video + your audio will be combined.

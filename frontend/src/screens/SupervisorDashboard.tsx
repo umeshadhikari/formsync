@@ -10,9 +10,9 @@ import api from '../api/client';
 import ApprovalTimeline from '../components/ApprovalTimeline';
 import AlertModal, { useAlert } from '../components/AlertModal';
 
-type TabKey = 'queue' | 'myItems' | 'search';
+type TabKey = 'queue' | 'myItems';
 
-export default function SupervisorDashboard() {
+export default function SupervisorDashboard({ navigation }: { navigation?: any }) {
   const { user } = useAuth();
   const { theme } = useTheme();
   const { alert, showAlert, hideAlert } = useAlert();
@@ -49,9 +49,6 @@ export default function SupervisorDashboard() {
   const [myItemsTotal, setMyItemsTotal] = useState(0);
   const [myItemsLoading, setMyItemsLoading] = useState(false);
   const [myItemsLoadingMore, setMyItemsLoadingMore] = useState(false);
-  const [myItemDetail, setMyItemDetail] = useState<any>(null);
-  const [myItemHistory, setMyItemHistory] = useState<any[]>([]);
-  const [myItemHistoryLoading, setMyItemHistoryLoading] = useState(false);
 
   // ── Search State ──
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,6 +258,7 @@ export default function SupervisorDashboard() {
 
   // ── Search ──
   const handleSearch = async (page = 0) => {
+    if (!searchQuery && !searchJourney && !searchStatus && !searchDateFrom && !searchDateTo) return;
     setSearchLoading(true);
     try {
       const res = await api.searchForms({
@@ -276,35 +274,18 @@ export default function SupervisorDashboard() {
       else setSearchResults(prev => [...prev, ...(res.content || [])]);
       setSearchTotal(res.totalElements || 0);
       setSearchPage(page);
+      setIsSearchActive(true);
     } catch (e: any) { showAlert('error', 'Search Failed', e.message); }
     finally { setSearchLoading(false); }
   };
 
-  // ── My Item Detail ──
+  // ── My Item Detail (navigate to FormDetailScreen) ──
   const openMyItemDetail = (item: any) => {
-    setMyItemDetail(item);
-    setMyItemHistory([]);
-    setMyItemHistoryLoading(true);
-    api.getApprovalHistory(item.form.id)
-      .then(history => setMyItemHistory(history))
-      .catch(() => setMyItemHistory([]))
-      .finally(() => setMyItemHistoryLoading(false));
+    navigation?.navigate('FormDetail', { formId: item.form.id, form: item.form });
   };
 
   const openSearchItemDetail = (form: any) => {
-    setMyItemHistory([]);
-    setMyItemHistoryLoading(true);
-    // Wrap the flat form object into the structure the detail modal expects
-    const wrapped: any = { form, workflow: null, relationship: 'Search Result' };
-    setMyItemDetail(wrapped);
-    // Fetch workflow + approval history in parallel
-    Promise.all([
-      api.getWorkflowByForm(form.id).catch(() => null),
-      api.getApprovalHistory(form.id).catch(() => []),
-    ]).then(([workflow, history]) => {
-      setMyItemDetail((prev: any) => prev ? { ...prev, workflow } : prev);
-      setMyItemHistory(history);
-    }).finally(() => setMyItemHistoryLoading(false));
+    navigation?.navigate('FormDetail', { formId: form.id, form });
   };
 
   // ── Helpers ──
@@ -320,11 +301,28 @@ export default function SupervisorDashboard() {
   const JOURNEY_LABELS = ['CASH_DEPOSIT', 'CASH_WITHDRAWAL', 'DEMAND_DRAFT', 'FUNDS_TRANSFER', 'ACCOUNT_OPENING', 'LOAN_DISBURSEMENT'];
   const STATUS_OPTIONS = ['PENDING_APPROVAL', 'COMPLETED', 'APPROVED', 'REJECTED', 'RETURNED', 'FAILED', 'DRAFT'];
 
+  // ── Inline Search State (merged into My Items) ──
+  const [showFilters, setShowFilters] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const hasActiveFilters = !!searchJourney || !!searchStatus || !!searchDateFrom || !!searchDateTo;
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchJourney('');
+    setSearchStatus('');
+    setSearchDateFrom('');
+    setSearchDateTo('');
+    setSearchResults([]);
+    setSearchTotal(0);
+    setSearchPage(0);
+    setIsSearchActive(false);
+    setShowFilters(false);
+  };
+
   // ── Tab Bar ──
   const tabs: { key: TabKey; label: string; icon: string; badge?: number }[] = [
     { key: 'queue', label: 'My Queue', icon: 'layers', badge: queue.length },
     { key: 'myItems', label: 'My Items', icon: 'person' },
-    { key: 'search', label: 'Search', icon: 'search' },
   ];
 
   return (
@@ -505,82 +503,22 @@ export default function SupervisorDashboard() {
         </>
       )}
 
-      {/* ═══════════════ TAB 2: MY ITEMS ═══════════════ */}
+      {/* ═══════════════ TAB 2: MY ITEMS (with inline search) ═══════════════ */}
       {activeTab === 'myItems' && (
-        <ScrollView refreshControl={<RefreshControl refreshing={myItemsLoading} onRefresh={loadMyItems} />}>
-          {myItems.length === 0 && !myItemsLoading ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="folder-open" size={64} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No items yet</Text>
-              <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>Forms you create or action will appear here</Text>
-            </View>
-          ) : (
-            myItems.map((item, idx) => {
-              const form = item.form;
-              if (!form) return null;
-              const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
-              const statusColor = STATUS_COLORS[form.status] || '#888';
-              const wfState = item.workflow?.currentState || form.status;
-
-              return (
-                <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openMyItemDetail(item)} activeOpacity={0.7}>
-                  <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
-                    <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
-                        <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
-                      </View>
-                      <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                        <Text style={[styles.statusBadgeText, { color: statusColor }]}>{wfState.replace(/_/g, ' ')}</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
-                    <View style={styles.cardDetails}>
-                      <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
-                      <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName}</Text>
-                    </View>
-                    <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
-                      <View style={[styles.relationBadge, { backgroundColor: theme.primaryColor + '15' }]}>
-                        <Ionicons name={item.relationship?.includes('Created') ? 'create' : 'checkmark-done'} size={12} color={theme.primaryColor} />
-                        <Text style={[styles.relationText, { color: theme.primaryColor }]}>{item.relationship}</Text>
-                      </View>
-                      <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.submittedAt || form.createdAt).toLocaleDateString()}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-          {/* Load More My Items */}
-          {myItems.length > 0 && myItems.length < myItemsTotal && (
-            <TouchableOpacity
-              style={[styles.loadMoreBtn, { borderColor: theme.accentColor }]}
-              onPress={loadMoreMyItems}
-              disabled={myItemsLoadingMore}
-            >
-              <Text style={[styles.loadMoreText, { color: theme.accentColor }]}>{myItemsLoadingMore ? 'Loading...' : `Load More (${myItems.length} of ${myItemsTotal})`}</Text>
-            </TouchableOpacity>
-          )}
-          <View style={{ height: 20 }} />
-        </ScrollView>
-      )}
-
-      {/* ═══════════════ TAB 3: SEARCH ═══════════════ */}
-      {activeTab === 'search' && (
-        <ScrollView>
-          <View style={[styles.searchPanel, { backgroundColor: theme.surfaceColor }]}>
-            {/* Search Input with inline button */}
+        <ScrollView refreshControl={<RefreshControl refreshing={myItemsLoading} onRefresh={() => { if (isSearchActive) handleSearch(0); else loadMyItems(); }} />}>
+          {/* ── Inline Search Bar ── */}
+          <View style={[styles.searchPanel, { backgroundColor: theme.surfaceColor, borderBottomColor: theme.borderColor, borderBottomWidth: 1 }]}>
             <View style={styles.searchRow}>
               <View style={[styles.searchInputContainer, { flex: 1, borderColor: theme.borderColor, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}>
                 <Ionicons name="search" size={16} color={theme.textTertiary} />
                 <TextInput
                   style={[styles.searchInput, { color: theme.textPrimary }]}
-                  placeholder="Reference or customer name..."
+                  placeholder="Search by reference or customer name..."
                   placeholderTextColor={theme.textTertiary}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={() => handleSearch(0)}
+                  returnKeyType="search"
                 />
                 {searchQuery ? (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -596,123 +534,219 @@ export default function SupervisorDashboard() {
                 <Ionicons name="search" size={16} color="#FFF" />
                 <Text style={styles.searchBtnText}>{searchLoading ? '...' : 'Search'}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterToggleBtn,
+                  {
+                    backgroundColor: showFilters || hasActiveFilters ? theme.accentColor + '15' : theme.surfaceElevated,
+                    borderColor: showFilters || hasActiveFilters ? theme.accentColor : theme.borderColor,
+                  },
+                ]}
+                onPress={() => setShowFilters(!showFilters)}
+              >
+                <Ionicons name="options" size={18} color={showFilters || hasActiveFilters ? theme.accentColor : theme.textSecondary} />
+                {hasActiveFilters && <View style={[styles.filterDot, { backgroundColor: theme.accentColor }]} />}
+              </TouchableOpacity>
             </View>
 
-            {/* Filter Chips */}
-            <View style={styles.filterRow}>
-              <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Journey:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                <TouchableOpacity
-                  style={[styles.chip, !searchJourney ? { backgroundColor: theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
-                  onPress={() => setSearchJourney('')}
-                >
-                  <Text style={[styles.chipText, { color: !searchJourney ? '#FFF' : theme.textSecondary }]}>All</Text>
-                </TouchableOpacity>
-                {JOURNEY_LABELS.map(j => {
-                  const info = JOURNEY_TYPES[j];
-                  return (
+            {/* ── Collapsible Advanced Filters ── */}
+            {showFilters && (
+              <View style={styles.filtersPanel}>
+                <View style={styles.filterRow}>
+                  <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Journey:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
                     <TouchableOpacity
-                      key={j}
-                      style={[styles.chip, searchJourney === j ? { backgroundColor: info?.color || theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
-                      onPress={() => setSearchJourney(searchJourney === j ? '' : j)}
+                      style={[styles.chip, !searchJourney ? { backgroundColor: theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
+                      onPress={() => setSearchJourney('')}
                     >
-                      <Text style={[styles.chipText, { color: searchJourney === j ? '#FFF' : theme.textSecondary }]}>{info?.label || j}</Text>
+                      <Text style={[styles.chipText, { color: !searchJourney ? '#FFF' : theme.textSecondary }]}>All</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
+                    {JOURNEY_LABELS.map(j => {
+                      const info = JOURNEY_TYPES[j];
+                      return (
+                        <TouchableOpacity
+                          key={j}
+                          style={[styles.chip, searchJourney === j ? { backgroundColor: info?.color || theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
+                          onPress={() => setSearchJourney(searchJourney === j ? '' : j)}
+                        >
+                          <Text style={[styles.chipText, { color: searchJourney === j ? '#FFF' : theme.textSecondary }]}>{info?.label || j}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
 
-            <View style={styles.filterRow}>
-              <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Status:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                <TouchableOpacity
-                  style={[styles.chip, !searchStatus ? { backgroundColor: theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
-                  onPress={() => setSearchStatus('')}
-                >
-                  <Text style={[styles.chipText, { color: !searchStatus ? '#FFF' : theme.textSecondary }]}>All</Text>
-                </TouchableOpacity>
-                {STATUS_OPTIONS.map(s => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.chip, searchStatus === s ? { backgroundColor: STATUS_COLORS[s] || theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
-                    onPress={() => setSearchStatus(searchStatus === s ? '' : s)}
-                  >
-                    <Text style={[styles.chipText, { color: searchStatus === s ? '#FFF' : theme.textSecondary }]}>{s.replace(/_/g, ' ')}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                <View style={styles.filterRow}>
+                  <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Status:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                    <TouchableOpacity
+                      style={[styles.chip, !searchStatus ? { backgroundColor: theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
+                      onPress={() => setSearchStatus('')}
+                    >
+                      <Text style={[styles.chipText, { color: !searchStatus ? '#FFF' : theme.textSecondary }]}>All</Text>
+                    </TouchableOpacity>
+                    {STATUS_OPTIONS.map(s => (
+                      <TouchableOpacity
+                        key={s}
+                        style={[styles.chip, searchStatus === s ? { backgroundColor: STATUS_COLORS[s] || theme.accentColor } : { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor, borderWidth: 1 }]}
+                        onPress={() => setSearchStatus(searchStatus === s ? '' : s)}
+                      >
+                        <Text style={[styles.chipText, { color: searchStatus === s ? '#FFF' : theme.textSecondary }]}>{s.replace(/_/g, ' ')}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
 
-            {/* Date Filters - inline with labels */}
-            <View style={styles.filterRow}>
-              <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Date:</Text>
-              <View style={styles.dateInlineRow}>
-                <TextInput
-                  style={[styles.dateInputCompact, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}
-                  placeholder="From (YYYY-MM-DD)"
-                  placeholderTextColor={theme.textTertiary}
-                  value={searchDateFrom}
-                  onChangeText={setSearchDateFrom}
-                />
-                <Text style={{ color: theme.textTertiary, fontSize: 11 }}>—</Text>
-                <TextInput
-                  style={[styles.dateInputCompact, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}
-                  placeholder="To (YYYY-MM-DD)"
-                  placeholderTextColor={theme.textTertiary}
-                  value={searchDateTo}
-                  onChangeText={setSearchDateTo}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <View style={styles.searchResultsHeader}>
-              <Text style={[styles.searchResultsCount, { color: theme.textSecondary }]}>{searchTotal} result{searchTotal !== 1 ? 's' : ''} found</Text>
-            </View>
-          )}
-
-          {searchResults.map((form, idx) => {
-            const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
-            const statusColor = STATUS_COLORS[form.status] || '#888';
-            return (
-              <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openSearchItemDetail(form)} activeOpacity={0.7}>
-                <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
-                  <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
-                      <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                      <Text style={[styles.statusBadgeText, { color: statusColor }]}>{form.status.replace(/_/g, ' ')}</Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
-                  <View style={styles.cardDetails}>
-                    <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
-                    <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName || form.createdBy}</Text>
-                  </View>
-                  <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
-                    <Text style={[styles.dateText, { color: theme.textTertiary }]}>By: {form.createdBy}</Text>
-                    <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.createdAt).toLocaleDateString()}</Text>
+                <View style={styles.filterRow}>
+                  <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>Date:</Text>
+                  <View style={styles.dateInlineRow}>
+                    <TextInput
+                      style={[styles.dateInputCompact, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}
+                      placeholder="From (YYYY-MM-DD)"
+                      placeholderTextColor={theme.textTertiary}
+                      value={searchDateFrom}
+                      onChangeText={setSearchDateFrom}
+                    />
+                    <Text style={{ color: theme.textTertiary, fontSize: 11 }}>—</Text>
+                    <TextInput
+                      style={[styles.dateInputCompact, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}
+                      placeholder="To (YYYY-MM-DD)"
+                      placeholderTextColor={theme.textTertiary}
+                      value={searchDateTo}
+                      onChangeText={setSearchDateTo}
+                    />
                   </View>
                 </View>
-              </TouchableOpacity>
-            );
-          })}
 
-          {/* Load More */}
-          {searchResults.length > 0 && searchResults.length < searchTotal && (
-            <TouchableOpacity
-              style={[styles.loadMoreBtn, { borderColor: theme.accentColor }]}
-              onPress={() => handleSearch(searchPage + 1)}
-              disabled={searchLoading}
-            >
-              <Text style={[styles.loadMoreText, { color: theme.accentColor }]}>{searchLoading ? 'Loading...' : 'Load More'}</Text>
-            </TouchableOpacity>
+                {(isSearchActive || hasActiveFilters) && (
+                  <TouchableOpacity style={[styles.clearFiltersBtn, { borderColor: theme.borderColor }]} onPress={clearSearch}>
+                    <Ionicons name="close-circle-outline" size={14} color={theme.textSecondary} />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textSecondary }}>Clear Search & Filters</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* ── Summary Bar ── */}
+          <View style={[styles.summaryBar, { backgroundColor: theme.surfaceElevated, borderColor: theme.borderColor }]}>
+            <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+              {myItemsLoading || searchLoading ? 'Loading...' : isSearchActive
+                ? `${searchTotal} result${searchTotal !== 1 ? 's' : ''} found`
+                : `${myItemsTotal} item${myItemsTotal !== 1 ? 's' : ''}`}
+            </Text>
+            {isSearchActive && (
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={clearSearch}>
+                <Ionicons name="close-circle" size={14} color={theme.accentColor} />
+                <Text style={{ fontSize: 12, color: theme.accentColor, fontWeight: '600' }}>Clear Search</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* ── Display: Search Results or My Items ── */}
+          {isSearchActive ? (
+            <>
+              {searchResults.length === 0 && !searchLoading && (
+                <View style={styles.emptyState}>
+                  <Ionicons name="search-outline" size={48} color={theme.textTertiary} />
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No results found</Text>
+                  <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>Try adjusting your search terms or filters.</Text>
+                </View>
+              )}
+              {searchResults.map((form, idx) => {
+                const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
+                const statusColor = STATUS_COLORS[form.status] || '#888';
+                return (
+                  <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openSearchItemDetail(form)} activeOpacity={0.7}>
+                    <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
+                      <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
+                      <View style={styles.cardHeader}>
+                        <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
+                          <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
+                        </View>
+                        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                          <Text style={[styles.statusBadgeText, { color: statusColor }]}>{form.status.replace(/_/g, ' ')}</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
+                      <View style={styles.cardDetails}>
+                        <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
+                        <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName || form.createdBy}</Text>
+                      </View>
+                      <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
+                        <Text style={[styles.dateText, { color: theme.textTertiary }]}>By: {form.createdBy}</Text>
+                        <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.createdAt).toLocaleDateString()}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              {searchResults.length > 0 && searchResults.length < searchTotal && (
+                <TouchableOpacity
+                  style={[styles.loadMoreBtn, { borderColor: theme.accentColor }]}
+                  onPress={() => handleSearch(searchPage + 1)}
+                  disabled={searchLoading}
+                >
+                  <Text style={[styles.loadMoreText, { color: theme.accentColor }]}>{searchLoading ? 'Loading...' : `Load More (${searchResults.length} of ${searchTotal})`}</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <>
+              {myItems.length === 0 && !myItemsLoading ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="folder-open" size={48} color={theme.textTertiary} />
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No items yet</Text>
+                  <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>Forms you create or action will appear here</Text>
+                </View>
+              ) : (
+                myItems.map((item, idx) => {
+                  const form = item.form;
+                  if (!form) return null;
+                  const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
+                  const statusColor = STATUS_COLORS[form.status] || '#888';
+                  const wfState = item.workflow?.currentState || form.status;
+                  return (
+                    <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openMyItemDetail(item)} activeOpacity={0.7}>
+                      <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
+                        <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
+                        <View style={styles.cardHeader}>
+                          <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
+                            <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
+                          </View>
+                          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                            <Text style={[styles.statusBadgeText, { color: statusColor }]}>{wfState.replace(/_/g, ' ')}</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
+                        <View style={styles.cardDetails}>
+                          <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
+                          <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName}</Text>
+                        </View>
+                        <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
+                          <View style={[styles.relationBadge, { backgroundColor: theme.primaryColor + '15' }]}>
+                            <Ionicons name={item.relationship?.includes('Created') ? 'create' : 'checkmark-done'} size={12} color={theme.primaryColor} />
+                            <Text style={[styles.relationText, { color: theme.primaryColor }]}>{item.relationship}</Text>
+                          </View>
+                          <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.submittedAt || form.createdAt).toLocaleDateString()}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+              {myItems.length > 0 && myItems.length < myItemsTotal && (
+                <TouchableOpacity
+                  style={[styles.loadMoreBtn, { borderColor: theme.accentColor }]}
+                  onPress={loadMoreMyItems}
+                  disabled={myItemsLoadingMore}
+                >
+                  <Text style={[styles.loadMoreText, { color: theme.accentColor }]}>{myItemsLoadingMore ? 'Loading...' : `Load More (${myItems.length} of ${myItemsTotal})`}</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
           <View style={{ height: 20 }} />
@@ -891,82 +925,6 @@ export default function SupervisorDashboard() {
         </View>
       </Modal>
 
-      {/* ═══════════════ MY ITEM DETAIL MODAL ═══════════════ */}
-      <Modal visible={!!myItemDetail} animationType="slide" transparent>
-        <View style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)' }]}>
-          <View style={[styles.modalContent, getGlassStyle(theme)]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Item Details</Text>
-              <TouchableOpacity onPress={() => setMyItemDetail(null)}><Ionicons name="close" size={24} color={theme.textSecondary} /></TouchableOpacity>
-            </View>
-            {myItemDetail?.form && (
-              <ScrollView style={styles.modalBody}>
-                <Text style={[styles.modalRef, { color: theme.accentColor }]}>{myItemDetail.form.referenceNumber}</Text>
-                <Text style={[styles.modalJourney, { color: theme.textSecondary }]}>{JOURNEY_TYPES[myItemDetail.form.journeyType]?.label}</Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-                  <Text style={[styles.modalAmount, { color: theme.textPrimary, marginTop: 0 }]}>{myItemDetail.form.currency} {myItemDetail.form.amount?.toLocaleString()}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: (STATUS_COLORS[myItemDetail.form.status] || '#888') + '20' }]}>
-                    <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[myItemDetail.form.status] || '#888' }]} />
-                    <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[myItemDetail.form.status] || '#888' }]}>{(myItemDetail.workflow?.currentState || myItemDetail.form.status).replace(/_/g, ' ')}</Text>
-                  </View>
-                </View>
-
-                {/* Relationship + Meta */}
-                <View style={[styles.detailMetaRow, { borderColor: theme.borderColor }]}>
-                  <View style={[styles.relationBadge, { backgroundColor: theme.primaryColor + '15' }]}>
-                    <Ionicons name={myItemDetail.relationship?.includes('Created') ? 'create' : 'checkmark-done'} size={12} color={theme.primaryColor} />
-                    <Text style={[styles.relationText, { color: theme.primaryColor }]}>{myItemDetail.relationship}</Text>
-                  </View>
-                  <Text style={[styles.dateText, { color: theme.textTertiary }]}>
-                    {myItemDetail.form.customerName || myItemDetail.form.createdBy} | {new Date(myItemDetail.form.submittedAt || myItemDetail.form.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-
-                {/* Form Data */}
-                {myItemDetail.form.formData && Object.keys(myItemDetail.form.formData).length > 0 && (
-                  <View style={[styles.dataSection, { backgroundColor: theme.surfaceElevated }]}>
-                    <Text style={[styles.dataSectionTitle, { color: theme.primaryColor }]}>Form Data</Text>
-                    {Object.entries(myItemDetail.form.formData).filter(([_, v]) => v).map(([k, v]) => (
-                      <View key={k} style={[styles.dataRow, { borderBottomColor: theme.borderColor }]}>
-                        <Text style={[styles.dataKey, { color: theme.textSecondary }]}>{k.replace(/([A-Z])/g, ' $1')}</Text>
-                        <Text style={[styles.dataVal, { color: theme.textPrimary }]}>{String(v)}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Approval Timeline */}
-                {myItemHistoryLoading ? (
-                  <View style={[styles.dataSection, { backgroundColor: theme.surfaceElevated, alignItems: 'center', paddingVertical: 20 }]}>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>Loading approval history...</Text>
-                  </View>
-                ) : myItemDetail?.workflow ? (
-                  <ApprovalTimeline
-                    approvalHistory={myItemHistory}
-                    currentTier={myItemDetail.workflow.currentTier || 1}
-                    requiredTiers={myItemDetail.workflow.requiredTiers || 1}
-                    currentState={myItemDetail.workflow.currentState || 'PENDING_TIER_1'}
-                    formStatus={myItemDetail.form.status}
-                    submittedAt={myItemDetail.form.submittedAt || myItemDetail.form.createdAt}
-                    submitterName={myItemDetail.form.submitterName || myItemDetail.form.createdBy}
-                    tierRoles={myItemDetail.workflow?.tierRoles}
-                  />
-                ) : (
-                  <View style={[styles.dataSection, { backgroundColor: theme.surfaceElevated, alignItems: 'center', paddingVertical: 20 }]}>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>No workflow data available.</Text>
-                  </View>
-                )}
-              </ScrollView>
-            )}
-            <View style={{ padding: 16 }}>
-              <TouchableOpacity style={[styles.resultDoneBtn, { backgroundColor: theme.accentColor }]} onPress={() => setMyItemDetail(null)}>
-                <Text style={styles.resultDoneBtnText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <AlertModal alert={alert} onClose={hideAlert} />
     </View>
   );
@@ -1029,8 +987,16 @@ const styles = StyleSheet.create({
   relationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   relationText: { fontSize: 11, fontWeight: '600' },
   detailMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1 },
+  // Filter toggle
+  filterToggleBtn: { width: 42, height: 42, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  filterDot: { position: 'absolute', top: 6, right: 6, width: 7, height: 7, borderRadius: 4 },
+  filtersPanel: { marginTop: 10, gap: 8 },
+  clearFiltersBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1, marginTop: 4 },
+  // Summary
+  summaryBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 12, marginTop: 10, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  summaryText: { fontSize: 13, fontWeight: '600' },
   // Search
-  searchPanel: { padding: 16, gap: 10 },
+  searchPanel: { padding: 12, paddingBottom: 8 },
   searchRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   searchInputContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   searchInput: { flex: 1, fontSize: 14, outlineStyle: 'none' } as any,

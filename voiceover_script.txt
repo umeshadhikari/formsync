@@ -1,0 +1,34 @@
+FORMSYNC DEMO — VOICEOVER NARRATION SCRIPT
+============================================
+Total duration: ~64 seconds
+Voice: Professional female, warm and clear, moderate pace
+
+Instructions: Record each segment separately OR as one continuous take
+with natural pauses between segments (1-2 seconds).
+
+If recording separately, use the timestamps to align with video.
+
+
+[SEGMENT 1 — 0:00 to 0:08]
+Welcome to FormSync by Coral Bank. This platform lets administrators design form templates that tellers use across all branches.
+
+[SEGMENT 2 — 0:10 to 0:16]
+The admin dashboard shows thirty-one forms, two pending, and twenty-one completed.
+
+[SEGMENT 3 — 0:18 to 0:23]
+In the Form Builder, fourteen published templates cover every banking journey.
+
+[SEGMENT 4 — 0:24 to 0:31]
+The Cash Deposit Voucher has four sections and twenty fields. We duplicate it to create a new version.
+
+[SEGMENT 5 — 0:32 to 0:40]
+The copy loads with all original sections — account information, depositor details, and denomination breakdown.
+
+[SEGMENT 6 — 0:42 to 0:46]
+We add a Personal Details section with a Full Name field.
+
+[SEGMENT 7 — 0:48 to 0:53]
+Save and Publish makes the template live. The count updates to fifteen.
+
+[SEGMENT 8 — 0:54 to 1:01]
+Five sections, twenty-one fields, published and ready for tellers across all branches.
