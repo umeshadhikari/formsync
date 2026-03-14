@@ -35,6 +35,11 @@ public class FormInstanceController {
         return ResponseEntity.ok(service.saveDraft(req, actor));
     }
 
+    @PutMapping("/{id}/draft")
+    public ResponseEntity<FormInstance> updateDraft(@PathVariable Long id, @Valid @RequestBody FormSubmitRequest req, @AuthenticationPrincipal User actor) {
+        return ResponseEntity.ok(service.updateDraft(id, req, actor));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<FormInstance> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.getById(id));

@@ -13,7 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +30,7 @@ public class FormTemplateController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<Page<FormTemplate>> listAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
@@ -47,42 +49,48 @@ public class FormTemplateController {
 
     /** Get version history for a form code */
     @GetMapping("/versions/{formCode}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<List<FormTemplate>> getVersionHistory(@PathVariable String formCode) {
         return ResponseEntity.ok(service.getVersionHistory(formCode));
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<FormTemplate> create(@Valid @RequestBody FormTemplateRequest req, @AuthenticationPrincipal User actor) {
         return ResponseEntity.ok(service.create(req, actor));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<FormTemplate> update(@PathVariable Long id, @Valid @RequestBody FormTemplateRequest req, @AuthenticationPrincipal User actor) {
         return ResponseEntity.ok(service.update(id, req, actor));
     }
 
     /** Set expiry date on a template */
     @PostMapping("/{id}/expire")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<FormTemplate> setExpiry(
             @PathVariable Long id,
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal User actor) {
-        LocalDateTime expiresAt = body.get("expiresAt") != null ? LocalDateTime.parse(body.get("expiresAt")) : null;
+        LocalDateTime expiresAt = null;
+        if (body.get("expiresAt") != null) {
+            String raw = body.get("expiresAt");
+            expiresAt = raw.endsWith("Z") || raw.contains("+")
+                    ? LocalDateTime.ofInstant(Instant.parse(raw), ZoneId.systemDefault())
+                    : LocalDateTime.parse(raw);
+        }
         return ResponseEntity.ok(service.setExpiry(id, expiresAt, actor));
     }
 
     @PostMapping("/{id}/publish")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<FormTemplate> publish(@PathVariable Long id, @AuthenticationPrincipal User actor) {
         return ResponseEntity.ok(service.publish(id, actor));
     }
 
     @PostMapping("/{id}/archive")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','OPS_ADMIN','BRANCH_MANAGER')")
     public ResponseEntity<FormTemplate> archive(@PathVariable Long id, @AuthenticationPrincipal User actor) {
         return ResponseEntity.ok(service.archive(id, actor));
     }

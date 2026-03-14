@@ -99,6 +99,28 @@ public class FormInstanceService {
         return repo.save(form);
     }
 
+    @Transactional
+    public FormInstance updateDraft(Long id, FormSubmitRequest req, User actor) {
+        FormInstance form = getById(id);
+        if (!"DRAFT".equals(form.getStatus())) {
+            throw new IllegalStateException("Only DRAFT forms can be updated. Current status: " + form.getStatus());
+        }
+        if (!form.getCreatedBy().equals(actor.getUsername())) {
+            throw new SecurityException("You can only update your own drafts");
+        }
+        form.setFormData(req.getFormData());
+        form.setCustomerId(req.getCustomerId());
+        form.setCustomerName(req.getCustomerName());
+        form.setAmount(extractAmount(req.getFormData()));
+        form.setCurrency(req.getFormData().containsKey("currency") ? req.getFormData().get("currency").toString() : "KES");
+        form.setUpdatedAt(LocalDateTime.now());
+
+        auditService.log("FORM_INSTANCE", form.getId().toString(), "DRAFT_UPDATED", actor,
+                Map.of("referenceNumber", form.getReferenceNumber()));
+
+        return repo.save(form);
+    }
+
     private String generateReferenceNumber(String journeyType) {
         String prefix = switch (journeyType) {
             case "CASH_DEPOSIT" -> "CD";

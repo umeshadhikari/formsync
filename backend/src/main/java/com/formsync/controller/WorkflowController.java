@@ -282,7 +282,7 @@ public class WorkflowController {
                 .ruleName(req.getRuleName()).journeyType(req.getJourneyType())
                 .conditionField(req.getConditionField()).conditionOp(req.getConditionOp())
                 .conditionValue(req.getConditionValue()).requiredTiers(req.getRequiredTiers())
-                .approvalMode(req.getApprovalMode()).tierRoles(req.getTierRoles())
+                .approvalMode(req.getApprovalMode()).tierRoles(req.getTierRoles() != null ? req.getTierRoles() : List.of("CHECKER"))
                 .priority(req.getPriority()).isActive(req.getIsActive() != null ? req.getIsActive() : true)
                 .rejectionPolicy(req.getRejectionPolicy() != null ? req.getRejectionPolicy() : "PERMANENT")
                 .returnPolicy(req.getReturnPolicy() != null ? req.getReturnPolicy() : "ALLOW_RESUBMIT")

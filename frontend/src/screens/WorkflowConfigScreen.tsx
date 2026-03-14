@@ -50,7 +50,7 @@ export default function WorkflowConfigScreen() {
     setEditRule({
       journeyType: selectedJourney !== ALL_KEY ? selectedJourney : 'CASH_DEPOSIT',
       conditionField: 'amount', conditionOp: 'GT', requiredTiers: 1,
-      approvalMode: 'SEQUENTIAL', priority: 10, isActive: true,
+      approvalMode: 'SEQUENTIAL', tierRoles: ['CHECKER'], priority: 10, isActive: true,
       rejectionPolicy: 'PERMANENT', returnPolicy: 'ALLOW_RESUBMIT',
       maxResubmissions: 3, rejectionReasons: [],
       requireRejectionReason: true, requireReturnInstructions: true,

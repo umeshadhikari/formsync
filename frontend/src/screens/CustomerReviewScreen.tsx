@@ -10,7 +10,7 @@ import api from '../api/client';
 import AlertModal, { useAlert } from '../components/AlertModal';
 
 export default function CustomerReviewScreen({ route, navigation }: any) {
-  const { template, values, user: passedUser } = route.params;
+  const { template, values, user: passedUser, existingFormId } = route.params;
   const { user } = useAuth();
   const { theme } = useTheme();
   const [customerSig, setCustomerSig] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export default function CustomerReviewScreen({ route, navigation }: any) {
     if (!confirmationChecked) { showAlert('warning', 'Required', 'Please confirm the details are correct'); return; }
     setSubmitting(true);
     try {
-      const response = await api.submitForm({
+      const submitPayload: any = {
         templateId: template.id,
         journeyType: template.journeyType,
         formData: values,
@@ -39,7 +39,10 @@ export default function CustomerReviewScreen({ route, navigation }: any) {
         branchCode: user?.branchCode,
         customerSignature: { svgData: customerSig, deviceInfo: 'Coral Bank App' },
         tellerSignature: tellerSig ? { svgData: tellerSig, deviceInfo: 'Coral Bank App' } : null,
-      });
+      };
+      // If resuming a draft, include the existing form ID so backend updates instead of creating new
+      if (existingFormId) submitPayload.existingFormId = existingFormId;
+      const response = await api.submitForm(submitPayload);
       setResult(response);
       setSubmitted(true);
 

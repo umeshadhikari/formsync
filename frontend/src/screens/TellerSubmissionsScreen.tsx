@@ -158,7 +158,13 @@ export default function TellerSubmissionsScreen({ navigation }: Props) {
   };
 
   const openFormDetail = (form: any) => {
-    navigation.navigate('FormDetail', { formId: form.id, form });
+    const isOwner = form.createdBy === user?.username;
+    if (form.status === 'DRAFT' && isOwner) {
+      // Resume draft — open in FormEntry with the form's ID so it loads & pre-fills
+      navigation.navigate('FormEntry', { formId: form.id });
+    } else {
+      navigation.navigate('FormDetail', { formId: form.id, form });
+    }
   };
 
   const getStatusColor = (status: string): string => {
@@ -190,7 +196,9 @@ export default function TellerSubmissionsScreen({ navigation }: Props) {
 
   const renderFormCard = (form: any) => {
     const statusColor = getStatusColor(form.status);
-    const isActionable = ['RETURNED', 'REJECTED'].includes(form.status);
+    const isOwner = form.createdBy === user?.username;
+    const isActionable = ['RETURNED', 'REJECTED'].includes(form.status) && isOwner;
+    const isDraft = form.status === 'DRAFT' && isOwner;
     return (
       <TouchableOpacity
         key={form.id}
@@ -198,14 +206,23 @@ export default function TellerSubmissionsScreen({ navigation }: Props) {
           styles.formCard,
           {
             backgroundColor: theme.surfaceElevated,
-            borderColor: isActionable ? statusColor + '60' : theme.borderColor,
+            borderColor: (isActionable || isDraft) ? statusColor + '60' : theme.borderColor,
             borderLeftColor: statusColor,
           },
-          isActionable && { borderWidth: 1.5 },
+          (isActionable || isDraft) && { borderWidth: 1.5 },
         ]}
         onPress={() => openFormDetail(form)}
         activeOpacity={0.7}
       >
+        {isDraft && (
+          <View style={[styles.actionBanner, { backgroundColor: theme.accentColor + '10' }]}>
+            <Ionicons name="pencil" size={14} color={theme.accentColor} />
+            <Text style={[styles.actionBannerText, { color: theme.accentColor }]}>
+              Tap to resume this draft
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={theme.accentColor} />
+          </View>
+        )}
         {isActionable && (
           <View style={[styles.actionBanner, { backgroundColor: statusColor + '10' }]}>
             <Ionicons name={(form.status === 'RETURNED' ? 'arrow-undo' : 'close-circle') as any} size={14} color={statusColor} />

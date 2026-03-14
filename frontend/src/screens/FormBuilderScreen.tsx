@@ -42,6 +42,7 @@ export default function FormBuilderScreen() {
   const [description, setDescription] = useState('');
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [editSectionIdx, setEditSectionIdx] = useState(0);
+  const [editFieldIdx, setEditFieldIdx] = useState<number | null>(null); // null = adding new, number = editing existing
   const [editField, setEditField] = useState<Partial<FormField>>({});
   const [saving, setSaving] = useState(false);
 
@@ -162,7 +163,7 @@ export default function FormBuilderScreen() {
   }
 
   // === RESET to create mode ===
-  function resetBuilder() {
+  function resetBuilder(clearStatus = false) {
     setMode('create');
     setEditingTemplateId(null);
     setSupersedesTemplateId(null);
@@ -173,11 +174,20 @@ export default function FormBuilderScreen() {
     setDescription('');
     setJourneyType('CASH_DEPOSIT');
     setSections([{ id: 'section-1', title: 'Section 1', fields: [] }]);
-    setSaveStatus(null);
+    if (clearStatus) setSaveStatus(null);
   }
 
   function addField(type: FieldType) {
+    setEditFieldIdx(null);
     setEditField({ id: `field-${Date.now()}`, type, label: '', placeholder: '', required: false });
+    setShowFieldModal(true);
+  }
+
+  function openEditField(sectionIdx: number, fieldIdx: number) {
+    const field = sections[sectionIdx].fields[fieldIdx];
+    setEditSectionIdx(sectionIdx);
+    setEditFieldIdx(fieldIdx);
+    setEditField({ ...field });
     setShowFieldModal(true);
   }
 
@@ -193,10 +203,17 @@ export default function FormBuilderScreen() {
       helpText: editField.helpText,
     };
     const newSections = [...sections];
-    newSections[editSectionIdx].fields.push(field);
+    if (editFieldIdx !== null) {
+      // Update existing field in place
+      newSections[editSectionIdx].fields[editFieldIdx] = field;
+    } else {
+      // Add new field
+      newSections[editSectionIdx].fields.push(field);
+    }
     setSections(newSections);
     setShowFieldModal(false);
     setEditField({});
+    setEditFieldIdx(null);
   }
 
   function removeField(sectionIdx: number, fieldIdx: number) {
@@ -503,7 +520,7 @@ export default function FormBuilderScreen() {
         {mode !== 'create' && (
           <TouchableOpacity
             style={[styles.resetBtn, { borderColor: theme.borderColor }]}
-            onPress={resetBuilder}
+            onPress={() => resetBuilder(true)}
           >
             <Ionicons name="close" size={16} color={theme.textSecondary} />
             <Text style={[typography.small, { color: theme.textSecondary, marginLeft: 4 }]}>Cancel</Text>
@@ -667,7 +684,12 @@ export default function FormBuilderScreen() {
           </View>
 
           {section.fields.map((field, fIdx) => (
-            <View key={field.id} style={[styles.fieldRow, { borderBottomColor: theme.borderColor }]}>
+            <TouchableOpacity
+              key={field.id}
+              style={[styles.fieldRow, { borderBottomColor: theme.borderColor }]}
+              onPress={() => openEditField(sIdx, fIdx)}
+              activeOpacity={0.7}
+            >
               <Ionicons name="reorder-three" size={20} color={theme.textTertiary} />
               <View style={styles.fieldInfo}>
                 <Text style={[styles.fieldName, typography.bodyBold, { color: theme.textPrimary }]}>
@@ -679,12 +701,18 @@ export default function FormBuilderScreen() {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => removeField(sIdx, fIdx)}
+                onPress={() => openEditField(sIdx, fIdx)}
+                style={{ padding: 6, marginRight: 4 }}
+              >
+                <Ionicons name="pencil" size={16} color={theme.primaryColor} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); removeField(sIdx, fIdx); }}
                 style={{ padding: 6 }}
               >
                 <Ionicons name="trash" size={18} color={theme.dangerColor} />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           ))}
 
           {/* Add Field Palette */}
@@ -946,9 +974,37 @@ export default function FormBuilderScreen() {
       <Modal visible={showFieldModal} transparent animationType="fade">
         <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
           <View style={[styles.modalContent, getGlassStyle(theme), getElevation('high', theme)]}>
-            <Text style={[styles.modalTitle, typography.h3, { color: theme.textPrimary, marginBottom: 16 }]}>
-              Configure Field ({editField.type})
+            <Text style={[styles.modalTitle, typography.h3, { color: theme.textPrimary, marginBottom: 12 }]}>
+              {editFieldIdx !== null ? 'Edit Field' : 'Configure Field'}
             </Text>
+
+            {/* Field Type Selector */}
+            <Text style={[typography.label, { color: theme.textSecondary, marginBottom: 6 }]}>Field Type</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14, maxHeight: 38 }}>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {FIELD_TYPES.map(ft => (
+                  <TouchableOpacity
+                    key={ft.type}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      backgroundColor: editField.type === ft.type ? theme.primaryColor : (theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
+                      borderWidth: 1,
+                      borderColor: editField.type === ft.type ? theme.primaryColor : theme.borderColor,
+                    }}
+                    onPress={() => setEditField({ ...editField, type: ft.type })}
+                  >
+                    <Ionicons name={ft.icon as any} size={14} color={editField.type === ft.type ? '#FFF' : theme.textSecondary} />
+                    <Text style={[typography.small, { marginLeft: 4, color: editField.type === ft.type ? '#FFF' : theme.textSecondary, fontWeight: editField.type === ft.type ? '700' : '400' }]}>
+                      {ft.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
             <TextInput
               style={[getInputStyle(theme), typography.body, { marginBottom: 12 }]}
@@ -1031,7 +1087,7 @@ export default function FormBuilderScreen() {
                     borderColor: theme.borderColor,
                   },
                 ]}
-                onPress={() => setShowFieldModal(false)}
+                onPress={() => { setShowFieldModal(false); setEditFieldIdx(null); }}
               >
                 <Text style={[typography.bodyBold, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
@@ -1043,7 +1099,7 @@ export default function FormBuilderScreen() {
                 ]}
                 onPress={saveField}
               >
-                <Text style={[typography.bodyBold, { color: '#FFF' }]}>Add Field</Text>
+                <Text style={[typography.bodyBold, { color: '#FFF' }]}>{editFieldIdx !== null ? 'Save Changes' : 'Add Field'}</Text>
               </TouchableOpacity>
             </View>
           </View>

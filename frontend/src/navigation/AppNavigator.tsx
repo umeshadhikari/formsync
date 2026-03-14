@@ -23,12 +23,14 @@ import FormDetailScreen from '../screens/FormDetailScreen';
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
   const { theme } = useTheme();
-  const isAdmin = hasRole('SYSTEM_ADMIN');
-  const isChecker = hasRole('CHECKER') || hasRole('BRANCH_MANAGER') || hasRole('OPS_ADMIN');
-  const isAuditor = hasRole('AUDITOR');
-  const isTeller = hasRole('MAKER') || hasRole('SENIOR_MAKER');
+  // All tab visibility is now permission-driven — configurable via Admin > Roles
+  const canSubmitForms = hasPermission('FORM_CREATE');   // My Submissions tab
+  const canApprove     = hasPermission('QUEUE_VIEW');    // Approvals tab
+  const canBuildForms  = hasPermission('FORM_BUILDER');  // Form Builder tab
+  const canViewAudit   = hasPermission('AUDIT_VIEW');    // Audit Logs tab
+  const canManageUsers = hasPermission('USER_MANAGE');   // Admin tab
 
   return (
     <Tab.Navigator
@@ -61,21 +63,23 @@ function MainTabs() {
     >
       <Tab.Screen name="Dashboard" component={DashboardWithNav}
         options={{ tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />, title: 'Home' }} />
-      <Tab.Screen name="MySubmissions" component={TellerSubmissionsWithNav}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="folder-open" size={size} color={color} />, title: 'My Items' }} />
-      {(isChecker || isAdmin) && (
+      {canSubmitForms && (
+        <Tab.Screen name="MySubmissions" component={TellerSubmissionsWithNav}
+          options={{ tabBarIcon: ({ color, size }) => <Ionicons name="folder-open" size={size} color={color} />, title: 'My Submissions' }} />
+      )}
+      {canApprove && (
         <Tab.Screen name="Approvals" component={SupervisorDashboardWithNav}
           options={{ tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} /> }} />
       )}
-      {isAdmin && (
+      {canBuildForms && (
         <Tab.Screen name="Builder" component={FormBuilderScreen}
           options={{ tabBarIcon: ({ color, size }) => <Ionicons name="create" size={size} color={color} />, title: 'Form Builder' }} />
       )}
-      {(isAuditor || isAdmin) && (
+      {canViewAudit && (
         <Tab.Screen name="Audit" component={AuditLogScreen}
           options={{ tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />, title: 'Audit Logs' }} />
       )}
-      {isAdmin && (
+      {canManageUsers && (
         <Tab.Screen name="Admin" component={AdminWithNav}
           options={{ tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
       )}
@@ -184,6 +188,44 @@ function TellerSubmissionsWithNav({ navigation: tabNav }: any) {
     { backgroundColor: theme.surfaceColor, borderBottomWidth: 1, borderBottomColor: theme.borderColor },
     Platform.OS === 'web' ? { boxShadow: theme.isDark ? '0 2px 12px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.06)' } as any : {},
   ];
+
+  if (subScreen?.name === 'FormEntry') {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.backgroundColor }}>
+        <View style={subHeaderStyle}>
+          <TouchableOpacity onPress={() => setSubScreen(null)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={theme.accentColor} />
+            <Text style={[styles.backText, { color: theme.accentColor }]}>Back</Text>
+          </TouchableOpacity>
+          <Text style={[styles.subHeaderTitle, { color: theme.textPrimary }]}>Resume Draft</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <FormEntryScreen
+          navigation={{ navigate: (name: string, params?: any) => setSubScreen({ name, params }), goBack: () => setSubScreen(null), popToTop: () => setSubScreen(null) }}
+          route={{ params: subScreen.params }}
+        />
+      </View>
+    );
+  }
+
+  if (subScreen?.name === 'CustomerReview') {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.backgroundColor }}>
+        <View style={subHeaderStyle}>
+          <TouchableOpacity onPress={() => setSubScreen(null)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={theme.accentColor} />
+            <Text style={[styles.backText, { color: theme.accentColor }]}>Back</Text>
+          </TouchableOpacity>
+          <Text style={[styles.subHeaderTitle, { color: theme.textPrimary }]}>Customer Review</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <CustomerReviewScreen
+          navigation={{ navigate: (name: string, params?: any) => setSubScreen({ name, params }), goBack: () => setSubScreen(null), popToTop: () => setSubScreen(null) }}
+          route={{ params: subScreen.params }}
+        />
+      </View>
+    );
+  }
 
   if (subScreen?.name === 'FormDetail') {
     return (

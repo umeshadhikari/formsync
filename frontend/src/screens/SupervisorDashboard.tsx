@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, TextInput, Modal, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, TextInput, Modal, Platform, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '../components/Icon';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { QueueItem, JOURNEY_TYPES } from '../types';
 import { getGlassStyle, getGlowShadow, getElevation } from '../utils/styles';
 import api from '../api/client';
-import ApprovalTimeline from '../components/ApprovalTimeline';
+// ApprovalTimeline now used in FormDetailScreen
 import AlertModal, { useAlert } from '../components/AlertModal';
 
 type TabKey = 'queue' | 'myItems';
@@ -24,24 +24,10 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
   const [queueTotal, setQueueTotal] = useState(0);
   const [queueLoadingMore, setQueueLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<QueueItem | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [comments, setComments] = useState('');
-  const [processing, setProcessing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [actionResult, setActionResult] = useState<any>(null);
-  const [approvalHistory, setApprovalHistory] = useState<any[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [claiming, setClaiming] = useState<number | null>(null);
-
-  // ── Rejection/Return Policy State ──
-  const [rejectionReasons, setRejectionReasons] = useState<string[]>([]);
-  const [selectedRejectionReason, setSelectedRejectionReason] = useState('');
-  const [returnInstructions, setReturnInstructions] = useState('');
-  const [rejectionPolicy, setRejectionPolicy] = useState('PERMANENT');
-  const [requireRejectionReason, setRequireRejectionReason] = useState(true);
-  const [requireReturnInstructions, setRequireReturnInstructions] = useState(true);
 
   // ── My Items State ──
   const [myItems, setMyItems] = useState<any[]>([]);
@@ -117,12 +103,14 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
     if (!append) setMyItemsLoading(true);
     try {
       const data = await api.getMyItems(page, 20);
-      const items = data?.content || data || [];
-      const total = data?.totalElements ?? items.length;
+      const rawItems = data?.content || data || [];
+      // Filter out DRAFT forms — drafts belong in My Submissions, not Approvals
+      const items = rawItems.filter((item: any) => item.form?.status !== 'DRAFT');
+      const total = (data?.totalElements ?? rawItems.length) - (rawItems.length - items.length);
       if (append) setMyItems(prev => [...prev, ...items]);
       else setMyItems(items);
       setMyItemsPage(page);
-      setMyItemsTotal(total);
+      setMyItemsTotal(Math.max(0, total));
     } catch (e: any) { console.error(e); }
     finally { setMyItemsLoading(false); }
   }, []);
@@ -160,33 +148,20 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
     try {
       await api.releaseForm(formId);
       await refreshAll();
-      setShowModal(false);
     } catch (e: any) {
       showAlert('error', 'Cannot Release', e.message);
     }
   };
 
-  // ── Detail Modal ──
+  // ── Open Review (navigates to FormDetailScreen in review mode) ──
   const openDetail = (item: QueueItem) => {
-    setSelectedItem(item);
-    setShowModal(true);
-    setComments('');
-    setSelectedRejectionReason('');
-    setReturnInstructions('');
-    setApprovalHistory([]);
-    setHistoryLoading(true);
-    api.getApprovalHistory(item.form.id)
-      .then(history => setApprovalHistory(history))
-      .catch(() => setApprovalHistory([]))
-      .finally(() => setHistoryLoading(false));
-    // Load rejection config from the queue item's workflow data (API adds extra fields beyond the typed interface)
-    const wf: any = item.workflow;
-    if (wf) {
-      setRejectionReasons(wf.rejectionReasons || []);
-      setRejectionPolicy(wf.rejectionPolicy || 'PERMANENT');
-      setRequireRejectionReason(wf.requireRejectionReason !== false);
-      setRequireReturnInstructions(wf.requireReturnInstructions !== false);
-    }
+    navigation?.navigate('FormDetail', {
+      formId: item.form.id,
+      form: item.form,
+      reviewMode: true,
+      workflowData: item.workflow,
+      onActionComplete: () => refreshAll(),
+    });
   };
 
   const toggleSelection = (formId: number) => {
@@ -222,40 +197,6 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
     finally { setBulkProcessing(false); }
   }
 
-  async function handleAction(action: 'APPROVE' | 'REJECT' | 'RETURN') {
-    if (!selectedItem) return;
-    if (action === 'REJECT' && requireRejectionReason && !selectedRejectionReason && !comments) {
-      showAlert('warning', 'Required', 'Please select a rejection reason or provide comments');
-      return;
-    }
-    if (action === 'RETURN' && requireReturnInstructions && !returnInstructions && !comments) {
-      showAlert('warning', 'Required', 'Please provide correction instructions for the teller');
-      return;
-    }
-    setProcessing(true);
-    try {
-      const formId = selectedItem.form.id;
-      const payload: any = { action, comments };
-      if (action === 'REJECT') {
-        payload.rejectionReason = selectedRejectionReason || comments;
-      }
-      if (action === 'RETURN') {
-        payload.returnInstructions = returnInstructions || comments;
-      }
-      if (action === 'APPROVE') await api.approveForm(formId, payload);
-      else if (action === 'REJECT') await api.rejectForm(formId, payload);
-      else await api.returnForm(formId, payload);
-      const form = selectedItem.form;
-      const journeyLabel = JOURNEY_TYPES[form.journeyType]?.label || form.journeyType;
-      const resultData: any = { type: action, ref: form.referenceNumber, journey: journeyLabel, amount: `${form.currency} ${form.amount?.toLocaleString()}` };
-      if (action === 'REJECT') resultData.rejectionPolicy = rejectionPolicy;
-      setActionResult(resultData);
-      setShowModal(false);
-      refreshAll();
-    } catch (e: any) { setActionResult({ type: 'ERROR', errorMsg: e.message }); }
-    finally { setProcessing(false); }
-  }
-
   // ── Search ──
   const handleSearch = async (page = 0) => {
     if (!searchQuery && !searchJourney && !searchStatus && !searchDateFrom && !searchDateTo) return;
@@ -270,9 +211,13 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
         page,
         size: 20,
       });
-      if (page === 0) setSearchResults(res.content || []);
-      else setSearchResults(prev => [...prev, ...(res.content || [])]);
-      setSearchTotal(res.totalElements || 0);
+      // Filter out DRAFT forms — supervisors shouldn't see incomplete drafts in search
+      const rawResults = res.content || [];
+      const filteredResults = rawResults.filter((f: any) => f.status !== 'DRAFT');
+      const filteredTotal = (res.totalElements || 0) - (rawResults.length - filteredResults.length);
+      if (page === 0) setSearchResults(filteredResults);
+      else setSearchResults(prev => [...prev, ...filteredResults]);
+      setSearchTotal(Math.max(0, filteredTotal));
       setSearchPage(page);
       setIsSearchActive(true);
     } catch (e: any) { showAlert('error', 'Search Failed', e.message); }
@@ -299,7 +244,7 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
   };
 
   const JOURNEY_LABELS = ['CASH_DEPOSIT', 'CASH_WITHDRAWAL', 'DEMAND_DRAFT', 'FUNDS_TRANSFER', 'ACCOUNT_OPENING', 'LOAN_DISBURSEMENT'];
-  const STATUS_OPTIONS = ['PENDING_APPROVAL', 'COMPLETED', 'APPROVED', 'REJECTED', 'RETURNED', 'FAILED', 'DRAFT'];
+  const STATUS_OPTIONS = ['PENDING_APPROVAL', 'COMPLETED', 'APPROVED', 'REJECTED', 'RETURNED', 'FAILED'];
 
   // ── Inline Search State (merged into My Items) ──
   const [showFilters, setShowFilters] = useState(false);
@@ -322,7 +267,7 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
   // ── Tab Bar ──
   const tabs: { key: TabKey; label: string; icon: string; badge?: number }[] = [
     { key: 'queue', label: 'My Queue', icon: 'layers', badge: queue.length },
-    { key: 'myItems', label: 'My Items', icon: 'person' },
+    { key: 'myItems', label: 'Picked Up', icon: 'person' },
   ];
 
   return (
@@ -368,13 +313,7 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
 
           {/* Select All Bar */}
           {queue.length > 0 && (
-            <View style={[styles.selectAllBar, { backgroundColor: theme.surfaceColor, borderBottomColor: theme.borderColor }]}>
-              <TouchableOpacity style={[styles.checkbox, { borderColor: theme.accentColor, backgroundColor: selectedIds.size === queue.length ? theme.accentColor : 'transparent' }]} onPress={toggleSelectAll}>
-                {selectedIds.size === queue.length && <Ionicons name="checkmark" size={16} color="#FFF" />}
-              </TouchableOpacity>
-              <Text style={[styles.selectAllText, { color: theme.textPrimary }]}>Select All</Text>
-              {selectedIds.size > 0 && <Text style={[styles.selectedCount, { color: theme.accentColor }]}>({selectedIds.size} selected)</Text>}
-            </View>
+            <View style={{ height: 4 }} />
           )}
 
           <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
@@ -389,91 +328,119 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
                 const form = item.form;
                 const wf = item.workflow;
                 if (!form) return null;
-                const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
-                const isSelected = selectedIds.has(form.id);
+                const statusColor = STATUS_COLORS[form.status] || STATUS_COLORS[wf?.currentState] || theme.warningColor;
                 const slaInfo = calculateTimeRemaining(wf?.slaDeadline);
                 const claimedByMe = isClaimedByMe(wf);
                 const claimedByOther = isClaimedByOther(wf);
+                const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
+                const fmtQueueDate = (ds: string) => {
+                  if (!ds) return '';
+                  const d = new Date(ds);
+                  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                    ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                };
 
                 return (
-                  <View key={form.id} style={[styles.cardWrapper, { backgroundColor: claimedByMe ? theme.accentColor + '08' : isSelected ? theme.accentColor + '10' : 'transparent' }]}>
-                    <View style={styles.cardRow}>
-                      <TouchableOpacity
-                        style={[styles.checkbox, { borderColor: theme.accentColor, backgroundColor: isSelected ? theme.accentColor : 'transparent', marginTop: 16 }]}
-                        onPress={() => toggleSelection(form.id)}
-                      >
-                        {isSelected && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                      </TouchableOpacity>
-                      <View style={[styles.card, getGlassStyle(theme), getElevation(2, theme), { flex: 1 }]}>
-                        <View style={[styles.cardBorder, { backgroundColor: claimedByMe ? theme.accentColor : journeyInfo.color }]} />
-                        <View style={styles.cardHeader}>
-                          <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
-                            <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', gap: 6 }}>
-                            <View style={[styles.tierBadge, { backgroundColor: theme.warningColor + '20' }]}>
-                              <Text style={[styles.tierText, { color: theme.warningColor }]}>Tier {wf?.currentTier || 1}</Text>
-                            </View>
-                            {wf?.escalated && (
-                              <View style={[styles.tierBadge, { backgroundColor: theme.dangerColor + '20' }]}>
-                                <Text style={[styles.tierText, { color: theme.dangerColor }]}>Escalated</Text>
-                              </View>
-                            )}
-                          </View>
+                  <TouchableOpacity
+                    key={form.id}
+                    style={[
+                      styles.pickedUpCard,
+                      {
+                        backgroundColor: claimedByMe ? theme.accentColor + '06' : theme.surfaceElevated,
+                        borderColor: claimedByMe ? theme.accentColor + '40' : theme.borderColor,
+                        borderLeftColor: claimedByMe ? theme.accentColor : statusColor,
+                      },
+                    ]}
+                    onPress={() => claimedByMe ? openDetail(item) : handleClaim(form.id)}
+                    activeOpacity={0.7}
+                    disabled={claimedByOther || claiming === form.id}
+                  >
+                    <View style={styles.pickedUpCardBody}>
+                      <View style={styles.pickedUpCardRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.pickedUpRef, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
+                          <Text style={[styles.pickedUpJourney, { color: theme.textSecondary }]}>{journeyInfo.label}</Text>
                         </View>
-                        <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
-                        <View style={styles.cardDetails}>
-                          <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
-                          <Text style={[styles.detailText, { color: theme.textSecondary }]}>By: {form.createdBy}</Text>
-                        </View>
-
-                        {/* Claim Status + Actions */}
-                        <View style={[styles.claimRow, { borderTopColor: theme.borderColor }]}>
-                          {claimedByMe ? (
-                            <>
-                              <View style={[styles.claimBadge, { backgroundColor: theme.accentColor + '15' }]}>
-                                <Ionicons name="lock-closed" size={12} color={theme.accentColor} />
-                                <Text style={[styles.claimBadgeText, { color: theme.accentColor }]}>Picked up by you</Text>
-                              </View>
-                              <View style={{ flexDirection: 'row', gap: 6 }}>
-                                <TouchableOpacity style={[styles.claimActionBtn, { backgroundColor: theme.textTertiary + '20' }]} onPress={() => handleRelease(form.id)}>
-                                  <Ionicons name="lock-open" size={14} color={theme.textSecondary} />
-                                  <Text style={[styles.claimActionText, { color: theme.textSecondary }]}>Release</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.claimActionBtn, { backgroundColor: theme.accentColor }]} onPress={() => openDetail(item)}>
-                                  <Ionicons name="eye" size={14} color="#FFF" />
-                                  <Text style={[styles.claimActionText, { color: '#FFF' }]}>Review</Text>
-                                </TouchableOpacity>
-                              </View>
-                            </>
-                          ) : claimedByOther ? (
-                            <View style={[styles.claimBadge, { backgroundColor: theme.textTertiary + '15' }]}>
-                              <Ionicons name="lock-closed" size={12} color={theme.textTertiary} />
-                              <Text style={[styles.claimBadgeText, { color: theme.textTertiary }]}>Picked up by {wf?.claimedByName}</Text>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          <View style={[styles.pickedUpStatusBadge, { backgroundColor: statusColor + '15', borderColor: statusColor + '30' }]}>
+                            <Ionicons name="hourglass" size={12} color={statusColor} />
+                            <Text style={[styles.pickedUpStatusText, { color: statusColor }]}>TIER {wf?.currentTier || 1}</Text>
+                          </View>
+                          {wf?.escalated && (
+                            <View style={[styles.pickedUpStatusBadge, { backgroundColor: theme.dangerColor + '15', borderColor: theme.dangerColor + '30' }]}>
+                              <Ionicons name="alert-circle" size={10} color={theme.dangerColor} />
+                              <Text style={[styles.pickedUpStatusText, { color: theme.dangerColor }]}>ESCALATED</Text>
                             </View>
-                          ) : (
-                            <>
-                              <View style={styles.slaRow}>
-                                <View style={[styles.slaTimer, { backgroundColor: slaInfo.isWarning ? theme.dangerColor + '20' : theme.successColor + '20' }]}>
-                                  <Ionicons name={slaInfo.isWarning ? 'alert-circle' : 'timer'} size={12} color={slaInfo.isWarning ? theme.dangerColor : theme.successColor} />
-                                  <Text style={[styles.slaText, { color: slaInfo.isWarning ? theme.dangerColor : theme.successColor }]}>{slaInfo.display}</Text>
-                                </View>
-                                <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.createdAt).toLocaleDateString()}</Text>
-                              </View>
-                              <TouchableOpacity
-                                style={[styles.pickupBtn, { backgroundColor: theme.primaryColor, ...getGlowShadow(theme.primaryColor, 0.3) }]}
-                                onPress={() => handleClaim(form.id)}
-                                disabled={claiming === form.id}
-                              >
-                                <Ionicons name="hand-left" size={14} color="#FFF" />
-                                <Text style={styles.pickupBtnText}>{claiming === form.id ? 'Picking up...' : 'Pick Up'}</Text>
-                              </TouchableOpacity>
-                            </>
                           )}
                         </View>
                       </View>
+                      <View style={styles.pickedUpDetails}>
+                        <View style={styles.pickedUpDetailItem}>
+                          <Ionicons name="cash-outline" size={13} color={theme.textTertiary} />
+                          <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.pickedUpDetailItem}>
+                          <Ionicons name="person-outline" size={13} color={theme.textTertiary} />
+                          <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]} numberOfLines={1}>{form.customerName || form.createdBy}</Text>
+                        </View>
+                        <View style={styles.pickedUpDetailItem}>
+                          <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
+                          <Text style={[styles.pickedUpDetailText, { color: theme.textTertiary }]}>{fmtQueueDate(form.submittedAt || form.createdAt)}</Text>
+                        </View>
+                      </View>
+                      {/* Action row: claim status or pickup prompt */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                        {claimedByMe ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'space-between' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Ionicons name="lock-closed" size={12} color={theme.accentColor} />
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: theme.accentColor }}>Picked up by you</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                              <TouchableOpacity
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: theme.textTertiary + '15' }}
+                                onPress={() => handleRelease(form.id)}
+                              >
+                                <Ionicons name="lock-open" size={12} color={theme.textSecondary} />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: theme.textSecondary }}>Release</Text>
+                              </TouchableOpacity>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: theme.accentColor }}>
+                                <Ionicons name="eye" size={12} color="#FFF" />
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFF' }}>Review</Text>
+                              </View>
+                            </View>
+                          </View>
+                        ) : claimedByOther ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Ionicons name="lock-closed" size={12} color={theme.textTertiary} />
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: theme.textTertiary }}>Picked up by {wf?.claimedByName}</Text>
+                          </View>
+                        ) : (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'space-between' }}>
+                            {slaInfo.isWarning ? (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: theme.dangerColor + '15' }}>
+                                <Ionicons name="alert-circle" size={12} color={theme.dangerColor} />
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: theme.dangerColor }}>{slaInfo.display}</Text>
+                              </View>
+                            ) : (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="timer-outline" size={12} color={theme.textTertiary} />
+                                <Text style={{ fontSize: 11, fontWeight: '500', color: theme.textTertiary }}>{slaInfo.display}</Text>
+                              </View>
+                            )}
+                            {claiming === form.id ? (
+                              <ActivityIndicator size="small" color={theme.primaryColor} />
+                            ) : (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: theme.primaryColor }}>
+                                <Ionicons name="hand-left" size={12} color="#FFF" />
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFF' }}>Pick Up</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -487,19 +454,7 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
                 <Text style={[styles.loadMoreText, { color: theme.accentColor }]}>{queueLoadingMore ? 'Loading...' : `Load More (${queue.length} of ${queueTotal})`}</Text>
               </TouchableOpacity>
             )}
-            {selectedIds.size > 0 && <View style={{ height: 100 }} />}
           </ScrollView>
-
-          {/* Bulk Approve Floating Button */}
-          {selectedIds.size > 0 && (
-            <View style={[styles.floatingBulkBar, { backgroundColor: theme.accentColor, ...getGlowShadow(theme.accentColor, 0.5) }]}>
-              <Text style={styles.bulkCountText}>{selectedIds.size} selected</Text>
-              <TouchableOpacity style={[styles.bulkApproveBtn, { backgroundColor: theme.successColor, opacity: bulkProcessing ? 0.6 : 1 }]} onPress={handleBulkApprove} disabled={bulkProcessing}>
-                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-                <Text style={styles.bulkApproveBtnText}>Bulk Approve</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </>
       )}
 
@@ -656,27 +611,56 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
               {searchResults.map((form, idx) => {
                 const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
                 const statusColor = STATUS_COLORS[form.status] || '#888';
+                const statusIconMap2: Record<string, string> = {
+                  DRAFT: 'create', PENDING_APPROVAL: 'hourglass', COMPLETED: 'checkmark-circle',
+                  REJECTED: 'close-circle', RETURNED: 'arrow-undo', FAILED: 'warning',
+                };
+                const fmtDate = (ds: string) => {
+                  if (!ds) return '';
+                  const d = new Date(ds);
+                  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                    ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                };
                 return (
-                  <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openSearchItemDetail(form)} activeOpacity={0.7}>
-                    <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
-                      <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
-                      <View style={styles.cardHeader}>
-                        <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
-                          <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
+                  <TouchableOpacity
+                    key={form.id || idx}
+                    style={[
+                      styles.pickedUpCard,
+                      {
+                        backgroundColor: theme.surfaceElevated,
+                        borderColor: theme.borderColor,
+                        borderLeftColor: statusColor,
+                      },
+                    ]}
+                    onPress={() => openSearchItemDetail(form)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.pickedUpCardBody}>
+                      <View style={styles.pickedUpCardRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.pickedUpRef, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
+                          <Text style={[styles.pickedUpJourney, { color: theme.textSecondary }]}>{journeyInfo.label}</Text>
                         </View>
-                        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                          <Text style={[styles.statusBadgeText, { color: statusColor }]}>{form.status.replace(/_/g, ' ')}</Text>
+                        <View style={[styles.pickedUpStatusBadge, { backgroundColor: statusColor + '15', borderColor: statusColor + '30' }]}>
+                          <Ionicons name={(statusIconMap2[form.status] || 'help-circle') as any} size={12} color={statusColor} />
+                          <Text style={[styles.pickedUpStatusText, { color: statusColor }]}>{form.status.replace(/_/g, ' ')}</Text>
                         </View>
                       </View>
-                      <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
-                      <View style={styles.cardDetails}>
-                        <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
-                        <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName || form.createdBy}</Text>
-                      </View>
-                      <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
-                        <Text style={[styles.dateText, { color: theme.textTertiary }]}>By: {form.createdBy}</Text>
-                        <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.createdAt).toLocaleDateString()}</Text>
+                      <View style={styles.pickedUpDetails}>
+                        <View style={styles.pickedUpDetailItem}>
+                          <Ionicons name="cash-outline" size={13} color={theme.textTertiary} />
+                          <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
+                        </View>
+                        {(form.customerName || form.createdBy) ? (
+                          <View style={styles.pickedUpDetailItem}>
+                            <Ionicons name="person-outline" size={13} color={theme.textTertiary} />
+                            <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]} numberOfLines={1}>{form.customerName || form.createdBy}</Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.pickedUpDetailItem}>
+                          <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
+                          <Text style={[styles.pickedUpDetailText, { color: theme.textTertiary }]}>{fmtDate(form.createdAt)}</Text>
+                        </View>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -707,31 +691,63 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
                   const journeyInfo = JOURNEY_TYPES[form.journeyType] || { label: form.journeyType, color: '#888' };
                   const statusColor = STATUS_COLORS[form.status] || '#888';
                   const wfState = item.workflow?.currentState || form.status;
+                  const statusIconMap: Record<string, string> = {
+                    DRAFT: 'create', PENDING_APPROVAL: 'hourglass', COMPLETED: 'checkmark-circle',
+                    REJECTED: 'close-circle', RETURNED: 'arrow-undo', FAILED: 'warning',
+                  };
+                  const formatItemDate = (dateStr: string) => {
+                    if (!dateStr) return '';
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                      ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                  };
                   return (
-                    <TouchableOpacity key={form.id || idx} style={[styles.cardWrapper, { paddingHorizontal: 16 }]} onPress={() => openMyItemDetail(item)} activeOpacity={0.7}>
-                      <View style={[styles.card, getGlassStyle(theme), getElevation(1, theme)]}>
-                        <View style={[styles.cardBorder, { backgroundColor: journeyInfo.color }]} />
-                        <View style={styles.cardHeader}>
-                          <View style={[styles.journeyBadge, { backgroundColor: journeyInfo.color + '20' }]}>
-                            <Text style={[styles.journeyBadgeText, { color: journeyInfo.color }]}>{journeyInfo.label}</Text>
+                    <TouchableOpacity
+                      key={form.id || idx}
+                      style={[
+                        styles.pickedUpCard,
+                        {
+                          backgroundColor: theme.surfaceElevated,
+                          borderColor: theme.borderColor,
+                          borderLeftColor: statusColor,
+                        },
+                      ]}
+                      onPress={() => openMyItemDetail(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.pickedUpCardBody}>
+                        <View style={styles.pickedUpCardRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.pickedUpRef, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
+                            <Text style={[styles.pickedUpJourney, { color: theme.textSecondary }]}>{journeyInfo.label}</Text>
                           </View>
-                          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                            <Text style={[styles.statusBadgeText, { color: statusColor }]}>{wfState.replace(/_/g, ' ')}</Text>
+                          <View style={[styles.pickedUpStatusBadge, { backgroundColor: statusColor + '15', borderColor: statusColor + '30' }]}>
+                            <Ionicons name={(statusIconMap[form.status] || 'help-circle') as any} size={12} color={statusColor} />
+                            <Text style={[styles.pickedUpStatusText, { color: statusColor }]}>{wfState.replace(/_/g, ' ')}</Text>
                           </View>
                         </View>
-                        <Text style={[styles.refNumber, { color: theme.accentColor }]}>{form.referenceNumber}</Text>
-                        <View style={styles.cardDetails}>
-                          <Text style={[styles.detailText, { color: theme.textPrimary, fontWeight: '700' }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
-                          <Text style={[styles.detailText, { color: theme.textSecondary }]}>{form.customerName}</Text>
+                        <View style={styles.pickedUpDetails}>
+                          <View style={styles.pickedUpDetailItem}>
+                            <Ionicons name="cash-outline" size={13} color={theme.textTertiary} />
+                            <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]}>{form.currency} {form.amount?.toLocaleString()}</Text>
+                          </View>
+                          {form.customerName ? (
+                            <View style={styles.pickedUpDetailItem}>
+                              <Ionicons name="person-outline" size={13} color={theme.textTertiary} />
+                              <Text style={[styles.pickedUpDetailText, { color: theme.textPrimary }]} numberOfLines={1}>{form.customerName}</Text>
+                            </View>
+                          ) : null}
+                          <View style={styles.pickedUpDetailItem}>
+                            <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
+                            <Text style={[styles.pickedUpDetailText, { color: theme.textTertiary }]}>{formatItemDate(form.submittedAt || form.createdAt)}</Text>
+                          </View>
                         </View>
-                        <View style={[styles.myItemFooter, { borderTopColor: theme.borderColor }]}>
-                          <View style={[styles.relationBadge, { backgroundColor: theme.primaryColor + '15' }]}>
+                        {item.relationship && (
+                          <View style={styles.pickedUpRelationRow}>
                             <Ionicons name={item.relationship?.includes('Created') ? 'create' : 'checkmark-done'} size={12} color={theme.primaryColor} />
-                            <Text style={[styles.relationText, { color: theme.primaryColor }]}>{item.relationship}</Text>
+                            <Text style={[styles.pickedUpRelationText, { color: theme.primaryColor }]}>{item.relationship}</Text>
                           </View>
-                          <Text style={[styles.dateText, { color: theme.textTertiary }]}>{new Date(form.submittedAt || form.createdAt).toLocaleDateString()}</Text>
-                        </View>
+                        )}
                       </View>
                     </TouchableOpacity>
                   );
@@ -790,140 +806,6 @@ export default function SupervisorDashboard({ navigation }: { navigation?: any }
         </View>
       </Modal>
 
-      {/* ═══════════════ APPROVAL MODAL ═══════════════ */}
-      <Modal visible={showModal} animationType="slide" transparent>
-        <View style={[styles.modalOverlay, { backgroundColor: theme.isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.4)' }]}>
-          <View style={[styles.modalContent, getGlassStyle(theme)]}>
-            <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
-              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Review Form</Text>
-              <TouchableOpacity onPress={() => { setShowModal(false); }}><Ionicons name="close" size={24} color={theme.textSecondary} /></TouchableOpacity>
-            </View>
-            {selectedItem?.form && (
-              <ScrollView style={styles.modalBody}>
-                <Text style={[styles.modalRef, { color: theme.accentColor }]}>{selectedItem.form.referenceNumber}</Text>
-                <Text style={[styles.modalJourney, { color: theme.textSecondary }]}>{JOURNEY_TYPES[selectedItem.form.journeyType]?.label}</Text>
-                <Text style={[styles.modalAmount, { color: theme.textPrimary }]}>{selectedItem.form.currency} {selectedItem.form.amount?.toLocaleString()}</Text>
-
-                {/* Form Data */}
-                <View style={[styles.dataSection, { backgroundColor: theme.surfaceElevated }]}>
-                  <Text style={[styles.dataSectionTitle, { color: theme.primaryColor }]}>Form Data</Text>
-                  {Object.entries(selectedItem.form.formData || {}).filter(([_, v]) => v).map(([k, v]) => (
-                    <View key={k} style={[styles.dataRow, { borderBottomColor: theme.borderColor }]}>
-                      <Text style={[styles.dataKey, { color: theme.textSecondary }]}>{k.replace(/([A-Z])/g, ' $1')}</Text>
-                      <Text style={[styles.dataVal, { color: theme.textPrimary }]}>{String(v)}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Approval Timeline */}
-                {historyLoading ? (
-                  <View style={[styles.dataSection, { backgroundColor: theme.surfaceElevated, alignItems: 'center', paddingVertical: 20 }]}>
-                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>Loading approval history...</Text>
-                  </View>
-                ) : selectedItem?.workflow ? (
-                  <ApprovalTimeline
-                    approvalHistory={approvalHistory}
-                    currentTier={selectedItem.workflow.currentTier || 1}
-                    requiredTiers={selectedItem.workflow.requiredTiers || 1}
-                    currentState={selectedItem.workflow.currentState || 'PENDING_TIER_1'}
-                    formStatus={selectedItem.form.status}
-                    submittedAt={selectedItem.form.submittedAt || selectedItem.form.createdAt}
-                    submitterName={selectedItem.form.submitterName || selectedItem.form.createdBy}
-                    tierRoles={selectedItem.workflow.tierRoles}
-                  />
-                ) : null}
-
-                {/* Resubmission Badge */}
-                {(selectedItem?.workflow?.resubmissionCount ?? 0) > 0 && (
-                  <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, padding: 8, borderRadius: 8, backgroundColor: theme.warningColor + '12' }]}>
-                    <Ionicons name="refresh" size={14} color={theme.warningColor} />
-                    <Text style={{ color: theme.warningColor, fontSize: 12, fontWeight: '600' }}>
-                      Resubmission #{selectedItem.workflow.resubmissionCount}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Rejection Reasons Picker */}
-                {rejectionReasons.length > 0 && (
-                  <View style={{ marginTop: 14 }}>
-                    <Text style={[{ fontSize: 12, fontWeight: '700', color: theme.textSecondary, marginBottom: 8 }]}>
-                      Rejection Reason {requireRejectionReason ? '*' : ''}
-                    </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {rejectionReasons.map((reason: string) => (
-                        <TouchableOpacity
-                          key={reason}
-                          style={[{
-                            paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1,
-                            borderColor: selectedRejectionReason === reason ? theme.dangerColor : theme.borderColor,
-                            backgroundColor: selectedRejectionReason === reason ? theme.dangerColor + '15' : 'transparent',
-                          }]}
-                          onPress={() => setSelectedRejectionReason(selectedRejectionReason === reason ? '' : reason)}
-                        >
-                          <Text style={{ fontSize: 11, fontWeight: '600', color: selectedRejectionReason === reason ? theme.dangerColor : theme.textSecondary }}>
-                            {reason}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Return Instructions */}
-                <View style={{ marginTop: 14 }}>
-                  <Text style={[{ fontSize: 12, fontWeight: '700', color: theme.textSecondary, marginBottom: 6 }]}>
-                    Correction Instructions (for Return) {requireReturnInstructions ? '*' : ''}
-                  </Text>
-                  <TextInput
-                    style={[styles.commentInput, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated, marginTop: 0 }]}
-                    placeholder="Describe what the teller needs to correct..."
-                    value={returnInstructions}
-                    onChangeText={setReturnInstructions}
-                    multiline
-                    numberOfLines={2}
-                    placeholderTextColor={theme.textTertiary}
-                  />
-                </View>
-
-                {/* General Comments */}
-                <TextInput
-                  style={[styles.commentInput, { borderColor: theme.borderColor, color: theme.textPrimary, backgroundColor: theme.inputBackground || theme.surfaceElevated }]}
-                  placeholder="Additional comments..."
-                  value={comments}
-                  onChangeText={setComments}
-                  multiline
-                  numberOfLines={2}
-                  placeholderTextColor={theme.textTertiary}
-                />
-
-                {/* Rejection Policy Info */}
-                {rejectionPolicy && (
-                  <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: 8, backgroundColor: rejectionPolicy === 'PERMANENT' ? theme.dangerColor + '08' : theme.successColor + '08', marginTop: 4 }]}>
-                    <Ionicons name={rejectionPolicy === 'PERMANENT' ? 'alert-circle' : 'refresh-circle'} size={14} color={rejectionPolicy === 'PERMANENT' ? theme.dangerColor : theme.successColor} />
-                    <Text style={{ fontSize: 11, color: rejectionPolicy === 'PERMANENT' ? theme.dangerColor : theme.successColor, fontWeight: '500' }}>
-                      {rejectionPolicy === 'PERMANENT' ? 'Rejection is permanent — teller cannot resubmit' : 'Teller can correct and resubmit after rejection'}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-            )}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.dangerColor, opacity: processing ? 0.5 : 1 }]} onPress={() => handleAction('REJECT')} disabled={processing}>
-                <Ionicons name="close-circle" size={18} color="#FFF" />
-                <Text style={styles.actionBtnText}>Reject</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.warningColor, opacity: processing ? 0.5 : 1 }]} onPress={() => handleAction('RETURN')} disabled={processing}>
-                <Ionicons name="arrow-undo" size={18} color="#FFF" />
-                <Text style={styles.actionBtnText}>Send Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.approveBtn, { backgroundColor: theme.successColor, opacity: processing ? 0.5 : 1 }]} onPress={() => handleAction('APPROVE')} disabled={processing}>
-                <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-                <Text style={styles.actionBtnText}>Approve</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <AlertModal alert={alert} onClose={hideAlert} />
     </View>
@@ -986,6 +868,25 @@ const styles = StyleSheet.create({
   myItemFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   relationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   relationText: { fontSize: 11, fontWeight: '600' },
+  // Picked Up cards (matches TellerSubmissions style)
+  pickedUpCard: {
+    marginHorizontal: 12, marginBottom: 10, borderRadius: 12, borderLeftWidth: 4, borderWidth: 1, overflow: 'hidden',
+    ...Platform.select({
+      web: { boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)' } as any,
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+    }),
+  },
+  pickedUpCardBody: { padding: 14 },
+  pickedUpCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  pickedUpRef: { fontWeight: '700', fontSize: 14 },
+  pickedUpJourney: { fontSize: 12, marginTop: 2, fontWeight: '500' },
+  pickedUpStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
+  pickedUpStatusText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' as any },
+  pickedUpDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
+  pickedUpDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pickedUpDetailText: { fontSize: 12, fontWeight: '500' },
+  pickedUpRelationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  pickedUpRelationText: { fontSize: 11, fontWeight: '600' },
   detailMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1 },
   // Filter toggle
   filterToggleBtn: { width: 42, height: 42, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },

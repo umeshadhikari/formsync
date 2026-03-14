@@ -87,6 +87,7 @@ class ApiClient {
   // ── Form Instances ──
   submitForm(data: any) { return this.request<any>('/forms/submit', { method: 'POST', body: JSON.stringify(data) }); }
   saveDraft(data: any) { return this.request<any>('/forms/draft', { method: 'POST', body: JSON.stringify(data) }); }
+  updateDraft(id: number, data: any) { return this.request<any>(`/forms/${id}/draft`, { method: 'PUT', body: JSON.stringify(data) }); }
   getForm(id: number) { return this.request<any>(`/forms/${id}`); }
   getMyForms(page = 0, size = 20, status?: string) {
     const params = new URLSearchParams();

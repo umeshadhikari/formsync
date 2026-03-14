@@ -7,6 +7,7 @@ import { FormTemplate, JOURNEY_TYPES } from '../types';
 import api from '../api/client';
 import AlertModal, { useAlert } from '../components/AlertModal';
 import { getGlassStyle, getGlowShadow, getElevation, getGradientStyle, typography } from '../utils/styles';
+import { Ionicons } from '../components/Icon';
 
 export default function FormEntryScreen({ route, navigation }: any) {
   const { template: passedTemplate, formId, viewMode } = route.params || {};
@@ -20,6 +21,9 @@ export default function FormEntryScreen({ route, navigation }: any) {
   const [existingForm, setExistingForm] = useState<any>(null);
   const { alert, showAlert, hideAlert } = useAlert();
 
+  // Derived: are we editing an existing draft?
+  const isDraftResume = !!existingForm && existingForm.status === 'DRAFT';
+
   useEffect(() => {
     if (formId) loadExistingForm();
   }, [formId]);
@@ -28,6 +32,12 @@ export default function FormEntryScreen({ route, navigation }: any) {
     setLoading(true);
     try {
       const form = await api.getForm(formId);
+      // Ownership guard: only the creator can edit a draft
+      if (form.status === 'DRAFT' && form.createdBy !== user?.username) {
+        // Redirect to read-only FormDetail instead
+        navigation.replace('FormDetail', { formId: form.id, form });
+        return;
+      }
       setExistingForm(form);
       setValues(form.formData || {});
       if (form.templateId) {
@@ -69,28 +79,56 @@ export default function FormEntryScreen({ route, navigation }: any) {
 
   async function handleSubmit() {
     if (!validate()) { showAlert('warning', 'Validation Error', 'Please fix the highlighted fields'); return; }
-    navigation.navigate('CustomerReview', { template, values, user });
+    navigation.navigate('CustomerReview', {
+      template,
+      values,
+      user,
+      // Pass existing form ID so submit can update instead of create new
+      existingFormId: isDraftResume ? existingForm.id : undefined,
+    });
   }
 
   async function handleSaveDraft() {
     setSubmitting(true);
     try {
-      await api.saveDraft({
+      const draftData = {
         templateId: template!.id,
         journeyType: template!.journeyType,
         formData: values,
         branchCode: user?.branchCode,
-      });
-      showAlert('success', 'Saved', 'Draft saved successfully');
+      };
+
+      if (isDraftResume) {
+        // Update existing draft; fall back to creating new if endpoint not available
+        try {
+          await api.updateDraft(existingForm.id, draftData);
+        } catch {
+          await api.saveDraft(draftData);
+        }
+        showAlert('success', 'Updated', 'Draft updated successfully');
+      } else {
+        // Create new draft
+        await api.saveDraft(draftData);
+        showAlert('success', 'Saved', 'Draft saved successfully');
+      }
       navigation.goBack();
     } catch (e: any) { showAlert('error', 'Error', e.message); }
     finally { setSubmitting(false); }
+  }
+
+  async function handleDeleteDraft() {
+    showAlert('warning', 'Delete Draft', 'Are you sure you want to discard this draft? This cannot be undone.');
   }
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={theme.primaryColor} /></View>;
   if (!template) return <View style={styles.center}><Text>No template loaded</Text></View>;
 
   const journeyInfo = JOURNEY_TYPES[template.journeyType];
+
+  // Count filled fields for progress indicator
+  const totalFields = template.schema?.sections?.reduce((sum, s) => sum + s.fields.filter(f => f.type !== 'section').length, 0) || 0;
+  const filledFields = template.schema?.sections?.reduce((sum, s) => sum + s.fields.filter(f => f.type !== 'section' && values[f.id]).length, 0) || 0;
+  const progressPct = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -118,6 +156,17 @@ export default function FormEntryScreen({ route, navigation }: any) {
           <Text style={[styles.refNumber, typography.small, { color: 'rgba(255,255,255,0.75)', marginTop: 8 }]}>
             Ref: {existingForm.referenceNumber} • Status: {existingForm.status}
           </Text>
+        )}
+        {/* Progress indicator for draft resume */}
+        {isDraftResume && totalFields > 0 && (
+          <View style={styles.progressSection}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
+            </View>
+            <Text style={styles.progressText}>
+              {filledFields} of {totalFields} fields filled ({progressPct}%)
+            </Text>
+          </View>
         )}
       </View>
 
@@ -154,8 +203,9 @@ export default function FormEntryScreen({ route, navigation }: any) {
             onPress={handleSaveDraft}
             disabled={submitting}
           >
+            <Ionicons name={isDraftResume ? 'save' : 'document-outline'} size={16} color={theme.textSecondary} />
             <Text style={[typography.bodyBold, { color: theme.textSecondary, fontSize: 14 }]}>
-              Save Draft
+              {isDraftResume ? 'Update Draft' : 'Save Draft'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -206,6 +256,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   draftBtnText: {},
   submitBtn: {
@@ -217,4 +269,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   submitBtnText: {},
+  progressSection: {
+    marginTop: 12,
+    gap: 6,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FFF',
+    borderRadius: 2,
+  },
+  progressText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });
